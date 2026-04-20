@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Sixteen Years of Social Forces</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: #fff;
+    font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
+    overflow: hidden;
+    height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #2a3a52;
+  }
+  #wrap {
+    text-align: center;
+    padding: 0 32px;
+  }
+  .line1 {
+    font-size: clamp(48px, 9vw, 110px);
+    font-weight: 300;
+    color: #333;
+    letter-spacing: -0.01em;
+    line-height: 1.05;
+    opacity: 0;
+    animation: rise 900ms ease-out 200ms forwards;
+  }
+  .line2 {
+    font-size: clamp(48px, 9vw, 110px);
+    font-weight: 300;
+    color: #333;
+    letter-spacing: -0.01em;
+    line-height: 1.05;
+    opacity: 0;
+    animation: rise 900ms ease-out 700ms forwards;
+  }
+  .line2 em {
+    font-style: italic;
+    font-weight: 400;
+    color: #2c5f8a;
+  }
+  .sub {
+    margin-top: 42px;
+    font-size: clamp(18px, 2.2vw, 26px);
+    font-weight: 300;
+    color: #777;
+    letter-spacing: 0.4px;
+    opacity: 0;
+    animation: rise 900ms ease-out 1200ms forwards;
+  }
+  .sub strong {
+    font-weight: 600;
+    color: #444;
+  }
+  .dates {
+    margin-top: 10px;
+    font-size: clamp(16px, 1.6vw, 20px);
+    font-weight: 300;
+    color: #aaa;
+    letter-spacing: 3px;
+    opacity: 0;
+    animation: rise 900ms ease-out 1500ms forwards;
+  }
+  @keyframes rise {
+    from { opacity: 0; transform: translateY(16px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+</style>
+</head>
+<body>
+
+<div id="wrap">
+  <div class="line1">Sixteen Years</div>
+  <div class="line2">of <em>Social Forces</em></div>
+  <div class="sub"><strong>Arne L. Kalleberg</strong>, Editor</div>
+  <div class="dates">2010 &ndash; 2025</div>
+</div>
+
+<script>
+window.addEventListener('message', e => {
+  if (e.data === 'advance') window.parent.postMessage({ type: 'next-slide' }, '*');
+  if (e.data === 'back')    window.parent.postMessage({ type: 'prev-slide' }, '*');
+});
+document.addEventListener('keydown', e => {
+  if (e.key === 'ArrowRight' || e.key === ' ') {
+    e.preventDefault();
+    window.parent.postMessage({ type: 'next-slide' }, '*');
+  }
+  if (e.key === 'ArrowLeft') {
+    e.preventDefault();
+    window.parent.postMessage({ type: 'prev-slide' }, '*');
+  }
+});
+</script>
+</body>
+</html>
