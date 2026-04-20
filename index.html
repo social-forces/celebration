@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Social Forces — By the Numbers</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { background: #fff; overflow: hidden; }
+  iframe {
+    position: absolute;
+    top: 0; left: 0;
+    width: 100vw;
+    height: 100vh;
+    border: none;
+  }
+</style>
+</head>
+<body>
+
+<iframe id="slide" src=""></iframe>
+
+<script>
+const slides = [
+  // (a) submissions
+  'slides/08_submissions.html',
+  // (b) international: "92" reveal, then stack-the-countries
+  'slides/01_countries.html',
+  'slides/02_stack_arne.html',
+  // reviewers (catapult/arrows)
+  'slides/04_catapult.html',
+  // (c) topics: all topics, then Gender intersections
+  'slides/06_topics.html',
+  'slides/07_topic_detail.html',
+  // (d) impact: citation fireworks
+  'slides/05_fireworks.html',
+];
+
+let current = 0;
+const iframe = document.getElementById('slide');
+
+function loadSlide(index) {
+  current = Math.max(0, Math.min(index, slides.length - 1));
+  iframe.src = slides[current];
+}
+
+function sendToSlide(msg) {
+  iframe.contentWindow.postMessage(msg, '*');
+}
+
+// Listen for slides requesting next/prev
+window.addEventListener('message', e => {
+  if (e.data && e.data.type === 'next-slide') {
+    if (current < slides.length - 1) {
+      loadSlide(current + 1);
+    }
+  }
+  if (e.data && e.data.type === 'prev-slide') {
+    if (current > 0) {
+      loadSlide(current - 1);
+    }
+  }
+});
+
+// Keyboard: forward commands to the active slide
+document.addEventListener('keydown', e => {
+  if (e.key === 'ArrowRight' || e.key === ' ') {
+    e.preventDefault();
+    sendToSlide('advance');
+  }
+  if (e.key === 'ArrowLeft') {
+    e.preventDefault();
+    sendToSlide('back');
+  }
+  // Pass through 'p' for globe play/pause
+  if (e.key === 'p') {
+    iframe.contentWindow.document.dispatchEvent(
+      new KeyboardEvent('keydown', { key: 'p' })
+    );
+  }
+});
+
+// Start
+loadSlide(0);
+</script>
+</body>
+</html>

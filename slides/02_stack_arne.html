@@ -1,0 +1,541 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Stack the Countries</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: #fff;
+    font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
+    overflow: hidden;
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+  }
+  #header {
+    text-align: center;
+    padding: 12px 0 4px;
+    z-index: 10;
+  }
+  #header h2 {
+    font-size: 26px;
+    font-weight: 300;
+    color: #333;
+  }
+  #header h2 em { font-style: italic; font-weight: 400; }
+  #country-name {
+    font-size: 48px;
+    font-weight: 700;
+    color: #e8913a;
+    line-height: 1;
+    min-height: 56px;
+    transition: opacity 0.3s;
+  }
+  #year-display {
+    font-size: 22px;
+    font-weight: 300;
+    color: #666;
+    margin-top: 2px;
+  }
+  #year-display span {
+    font-weight: 700;
+    color: #2c5f8a;
+  }
+  #counts {
+    font-size: 18px;
+    margin-top: 2px;
+  }
+  .count-num { font-weight: 700; color: #2c5f8a; }
+  .count-label { font-weight: 300; color: #666; }
+  #canvas-wrap {
+    flex: 1;
+    position: relative;
+    min-height: 0;
+  }
+  canvas {
+    width: 100%;
+    height: 100%;
+  }
+</style>
+</head>
+<body>
+
+<div id="header">
+  <h2>First submissions to <em>Social Forces</em></h2>
+  <div id="country-name"></div>
+  <div id="year-display"></div>
+  <div id="counts">
+    <span class="count-num" id="total-count">0</span>
+    <span class="count-label">countries</span>
+  </div>
+</div>
+
+<div id="canvas-wrap">
+  <canvas id="scene"></canvas>
+</div>
+
+<script src="https://d3js.org/d3.v7.min.js"></script>
+<script src="https://d3js.org/topojson.v3.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/matter-js/0.20.0/matter.min.js"></script>
+<script>
+const countryData = [
+  {year:2010, countries:[
+    {iso:"ARG",name:"Argentina"},{iso:"AUS",name:"Australia"},{iso:"AUT",name:"Austria"},
+    {iso:"BEL",name:"Belgium"},{iso:"BRA",name:"Brazil"},{iso:"CAN",name:"Canada"},
+    {iso:"FIN",name:"Finland"},{iso:"DEU",name:"Germany"},{iso:"HKG",name:"Hong Kong"},
+    {iso:"HUN",name:"Hungary"},{iso:"ISL",name:"Iceland"},{iso:"IRN",name:"Iran"},
+    {iso:"ISR",name:"Israel"},{iso:"ITA",name:"Italy"},{iso:"JPN",name:"Japan"},
+    {iso:"KEN",name:"Kenya"},{iso:"LUX",name:"Luxembourg"},{iso:"MOZ",name:"Mozambique"},
+    {iso:"NLD",name:"Netherlands"},{iso:"NOR",name:"Norway"},{iso:"PRT",name:"Portugal"},
+    {iso:"ROU",name:"Romania"},{iso:"SGP",name:"Singapore"},{iso:"SVN",name:"Slovenia"},
+    {iso:"KOR",name:"South Korea"},{iso:"ESP",name:"Spain"},{iso:"SWE",name:"Sweden"},
+    {iso:"CHE",name:"Switzerland"},{iso:"TWN",name:"Taiwan"},{iso:"GBR",name:"United Kingdom"},
+  ]},
+  {year:2011, countries:[
+    {iso:"CHL",name:"Chile"},{iso:"CHN",name:"China"},{iso:"COL",name:"Colombia"},
+    {iso:"CYP",name:"Cyprus"},{iso:"DNK",name:"Denmark"},{iso:"DMA",name:"Dominica"},
+    {iso:"FRA",name:"France"},{iso:"GRC",name:"Greece"},{iso:"IDN",name:"Indonesia"},
+    {iso:"IRL",name:"Ireland"},{iso:"MEX",name:"Mexico"},{iso:"TUR",name:"Turkey"}
+  ]},
+  {year:2012, countries:[
+    {iso:"EST",name:"Estonia"},{iso:"MYS",name:"Malaysia"},{iso:"POL",name:"Poland"},
+    {iso:"ZAF",name:"South Africa"},{iso:"ARE",name:"UAE"}
+  ]},
+  {year:2013, countries:[{iso:"HRV",name:"Croatia"},{iso:"LVA",name:"Latvia"},{iso:"NZL",name:"New Zealand"}]},
+  {year:2014, countries:[
+    {iso:"BRB",name:"Barbados"},{iso:"CZE",name:"Czechia"},{iso:"IND",name:"India"},
+    {iso:"MAC",name:"Macao"},{iso:"MAR",name:"Morocco"},{iso:"RUS",name:"Russia"},
+    {iso:"SVK",name:"Slovakia"},{iso:"THA",name:"Thailand"},{iso:"UKR",name:"Ukraine"}
+  ]},
+  {year:2015, countries:[
+    {iso:"ECU",name:"Ecuador"},{iso:"JOR",name:"Jordan"},{iso:"PER",name:"Peru"},
+    {iso:"PHL",name:"Philippines"},{iso:"QAT",name:"Qatar"}
+  ]},
+  {year:2016, countries:[{iso:"KWT",name:"Kuwait"},{iso:"PAK",name:"Pakistan"}]},
+  {year:2017, countries:[{iso:"EGY",name:"Egypt"},{iso:"LBN",name:"Lebanon"},{iso:"VNM",name:"Vietnam"}]},
+  {year:2018, countries:[{iso:"GEO",name:"Georgia"},{iso:"GHA",name:"Ghana"},{iso:"MLT",name:"Malta"}]},
+  {year:2019, countries:[
+    {iso:"CRI",name:"Costa Rica"},{iso:"SLV",name:"El Salvador"},
+    {iso:"HND",name:"Honduras"},{iso:"SAU",name:"Saudi Arabia"}
+  ]},
+  {year:2020, countries:[{iso:"KAZ",name:"Kazakhstan"},{iso:"NGA",name:"Nigeria"}]},
+  {year:2021, countries:[{iso:"BGD",name:"Bangladesh"},{iso:"IRQ",name:"Iraq"},{iso:"SXM",name:"Sint Maarten"}]},
+  {year:2022, countries:[{iso:"RWA",name:"Rwanda"},{iso:"TZA",name:"Tanzania"},{iso:"URY",name:"Uruguay"}]},
+  {year:2023, countries:[{iso:"ALB",name:"Albania"},{iso:"PRK",name:"North Korea"},{iso:"SEN",name:"Senegal"}]},
+  {year:2024, countries:[{iso:"PSE",name:"Palestine"},{iso:"TUN",name:"Tunisia"}]},
+  {year:2025, countries:[{iso:"ARM",name:"Armenia"},{iso:"NPL",name:"Nepal"}]},
+];
+
+const alpha3ToNumeric = {
+  "AFG":"004","ALB":"008","ARG":"032","ARM":"051","AUS":"036","AUT":"040",
+  "BGD":"050","BRB":"052","BEL":"056","BRA":"076","CAN":"124","CHL":"152",
+  "CHN":"156","COL":"170","CRI":"188","HRV":"191","CYP":"196","CZE":"203",
+  "DNK":"208","DMA":"212","ECU":"218","EGY":"818","SLV":"222","EST":"233",
+  "FIN":"246","FRA":"250","GEO":"268","DEU":"276","GHA":"288","GRC":"300",
+  "HND":"340","HKG":"344","HUN":"348","ISL":"352","IND":"356","IDN":"360",
+  "IRN":"364","IRQ":"368","IRL":"372","ISR":"376","ITA":"380","JPN":"392",
+  "JOR":"400","KAZ":"398","KEN":"404","KOR":"410","PRK":"408","KWT":"414",
+  "LVA":"428","LBN":"422","LUX":"442","MAC":"446","MYS":"458","MLT":"470",
+  "MEX":"484","MAR":"504","MOZ":"508","NPL":"524","NLD":"528","NZL":"554",
+  "NGA":"566","NOR":"578","PAK":"586","PSE":"275","PER":"604","PHL":"608",
+  "POL":"616","PRT":"620","QAT":"634","ROU":"642","RUS":"643","RWA":"646",
+  "SAU":"682","SEN":"686","SGP":"702","SVK":"703","SVN":"705","ZAF":"710",
+  "ESP":"724","SWE":"752","CHE":"756","TWN":"158","TZA":"834","THA":"764",
+  "TUN":"788","TUR":"792","UKR":"804","ARE":"784","GBR":"826","USA":"840",
+  "URY":"858","VNM":"704","SXM":"534",
+};
+
+// Continent colors
+const CONTINENT_COLORS = {
+  europe: '#7fb3d8',
+  asia: '#e8913a',
+  africa: '#6bba70',
+  namerica: '#b8a9d4',
+  samerica: '#d4738a',
+  oceania: '#e6c85e',
+  mideast: '#5ab5a0',
+};
+
+const ISO_CONTINENT = {
+  ARG:'samerica',AUS:'oceania',AUT:'europe',BEL:'europe',BRA:'samerica',
+  CAN:'namerica',FIN:'europe',DEU:'europe',HKG:'asia',HUN:'europe',
+  ISL:'europe',IRN:'mideast',ISR:'mideast',ITA:'europe',JPN:'asia',
+  KEN:'africa',LUX:'europe',MOZ:'africa',NLD:'europe',NOR:'europe',
+  PRT:'europe',ROU:'europe',SGP:'asia',SVN:'europe',KOR:'asia',
+  ESP:'europe',SWE:'europe',CHE:'europe',TWN:'asia',GBR:'europe',
+  CHL:'samerica',CHN:'asia',COL:'samerica',CYP:'europe',DNK:'europe',
+  DMA:'namerica',FRA:'europe',GRC:'europe',IDN:'asia',IRL:'europe',
+  MEX:'namerica',TUR:'europe',EST:'europe',MYS:'asia',POL:'europe',
+  ZAF:'africa',ARE:'mideast',HRV:'europe',LVA:'europe',NZL:'oceania',
+  BRB:'namerica',CZE:'europe',IND:'asia',MAC:'asia',MAR:'africa',
+  RUS:'europe',SVK:'europe',THA:'asia',UKR:'europe',ECU:'samerica',
+  JOR:'mideast',PER:'samerica',PHL:'asia',QAT:'mideast',KWT:'mideast',
+  PAK:'asia',EGY:'africa',LBN:'mideast',VNM:'asia',GEO:'europe',
+  GHA:'africa',MLT:'europe',CRI:'namerica',SLV:'namerica',HND:'namerica',
+  SAU:'mideast',KAZ:'asia',NGA:'africa',BGD:'asia',IRQ:'mideast',
+  SXM:'namerica',RWA:'africa',TZA:'africa',URY:'samerica',ALB:'europe',
+  PRK:'asia',SEN:'africa',PSE:'mideast',TUN:'africa',ARM:'asia',NPL:'asia',
+};
+
+function getColor(iso) {
+  const cont = ISO_CONTINENT[iso] || 'europe';
+  return CONTINENT_COLORS[cont];
+}
+
+const canvas = document.getElementById('scene');
+const ctxMain = canvas.getContext('2d');
+let W, H;
+
+// Arne catching caricature
+const arneImg = new Image();
+arneImg.src = '../arne_catchting.png';
+
+// Arne's display geometry — updated in setupArne()
+let arneDraw = { x: 0, y: 0, w: 0, h: 0 };
+
+function getSize() {
+  const wrap = document.getElementById('canvas-wrap');
+  const rect = wrap.getBoundingClientRect();
+  W = rect.width;
+  H = rect.height;
+  canvas.width = W * devicePixelRatio;
+  canvas.height = H * devicePixelRatio;
+  canvas.style.width = W + 'px';
+  canvas.style.height = H + 'px';
+}
+getSize();
+
+// Matter.js
+const Engine = Matter.Engine, Bodies = Matter.Bodies,
+      Composite = Matter.Composite, Body = Matter.Body;
+const engine = Engine.create({ gravity: { x: 0, y: 1.5 } });
+
+function createWalls() {
+  // Remove old statics
+  Composite.allBodies(engine.world)
+    .filter(b => b.isStatic)
+    .forEach(b => Composite.remove(engine.world, b));
+
+  // Show only the TOP HALF of Arne at the bottom of the screen.
+  // The full image is portrait; we crop its lower half via drawImage source rect.
+  const fullAspect = arneImg.complete && arneImg.naturalHeight
+    ? arneImg.naturalWidth / arneImg.naturalHeight
+    : 0.66;
+  // Cropped aspect (top half): width stays same, height halves → aspect doubles
+  const croppedAspect = fullAspect * 2;
+
+  // Fit the cropped image so it takes up the bottom of the screen
+  const drawH = H * 0.55;
+  const drawW = drawH * croppedAspect;
+  const drawX = W / 2 - drawW / 2;
+  const drawY = H - drawH;
+
+  // Store source-rect info for render
+  arneDraw = {
+    x: drawX, y: drawY, w: drawW, h: drawH,
+    // Source: top half of image
+    srcX: 0, srcY: 0,
+    srcW: arneImg.naturalWidth || 1024,
+    srcH: (arneImg.naturalHeight || 1536) / 2,
+  };
+
+  // ATLAS CATCH: platform sits on Arne's outstretched hands, with tall
+  // inward-angled walls so the pile grows UP into a globe-like mound.
+  const cx = drawX + drawW / 2;
+
+  const handY = drawY + drawH * 0.82;
+  const halfSpan = drawW * 0.42;
+
+  const bottom = Bodies.rectangle(
+    cx, handY + 18,
+    halfSpan * 2 * 0.95, 36,
+    { isStatic: true }
+  );
+
+  // Tall walls tilted inward; shift centers inward by sin(tilt)*h/2 so the
+  // BASE lands exactly at ±halfSpan (no gap to the platform).
+  const wallH = drawH * 1.25;
+  const wallTilt = 0.15;
+  const wallOffsetX = Math.sin(wallTilt) * wallH / 2;
+  const leftWall = Bodies.rectangle(
+    cx - halfSpan + wallOffsetX, handY - wallH / 2,
+    24, wallH,
+    { isStatic: true, angle: wallTilt }
+  );
+  const rightWall = Bodies.rectangle(
+    cx + halfSpan - wallOffsetX, handY - wallH / 2,
+    24, wallH,
+    { isStatic: true, angle: -wallTilt }
+  );
+
+  // Outer safety walls off-screen, so anything that escapes doesn't fly away
+  const outerLeft = Bodies.rectangle(-25, H / 2, 50, H * 2, { isStatic: true });
+  const outerRight = Bodies.rectangle(W + 25, H / 2, 50, H * 2, { isStatic: true });
+
+  // Floor catches stragglers
+  const floor = Bodies.rectangle(W / 2, H + 40, W * 2, 80, { isStatic: true });
+
+  // Expose geometry so dropCountry can spawn within the walls
+  arneDraw.handY = handY;
+  arneDraw.halfSpan = halfSpan;
+
+  Composite.add(engine.world, [bottom, leftWall, rightWall, outerLeft, outerRight, floor]);
+}
+createWalls();
+// Rebuild walls when Arne's image finishes loading so the aspect ratio is right
+arneImg.addEventListener('load', () => createWalls());
+
+// All the live shapes on screen
+let droppedShapes = []; // { body, pathStr, width, height, color, name }
+let totalCountries = 0;
+let currentYearIdx = -1;
+
+// Precomputed raw geo info (screen-independent)
+let rawGeoInfo = []; // { iso, name, geoArea, feature, mercBounds }
+
+// Screen-dependent computed shapes
+let countryShapes = {}; // iso → { pathStr, width, height, color, name }
+
+let worldLoaded = false;
+let featureById = {};
+
+function precomputeRaw(features) {
+  featureById = {};
+  features.forEach(f => {
+    featureById[f.id] = f;
+    featureById[String(parseInt(f.id, 10))] = f;
+  });
+
+  const proj = d3.geoMercator().scale(1).translate([0, 0]);
+  const pathGen = d3.geoPath().projection(proj);
+
+  rawGeoInfo = [];
+  countryData.forEach(yg => {
+    yg.countries.forEach(c => {
+      const numId = alpha3ToNumeric[c.iso];
+      if (!numId) return;
+      const feature = featureById[numId] || featureById[String(parseInt(numId, 10))];
+      if (!feature) return;
+      const geoArea = d3.geoArea(feature);
+      const [[x0, y0], [x1, y1]] = pathGen.bounds(feature);
+      const fw = x1 - x0, fh = y1 - y0;
+      if (fw <= 0 || fh <= 0 || geoArea <= 0) return;
+      rawGeoInfo.push({ iso: c.iso, name: c.name, geoArea, feature, x0, y0, fw, fh });
+    });
+  });
+}
+
+function computeShapes() {
+  const proj = d3.geoMercator().scale(1).translate([0, 0]);
+  const screenArea = W * H;
+  const maxGeoArea = Math.max(...rawGeoInfo.map(d => d.geoArea));
+
+  // Each country's target size proportional to sqrt(geoArea)
+  // Then boost so total area fills the screen
+  const baseMaxDim = Math.min(W, H) * 0.35;
+  let totalArea = 0;
+  const perCountry = rawGeoInfo.map(d => {
+    const relSize = Math.sqrt(d.geoArea / maxGeoArea);
+    const targetMaxDim = Math.max(baseMaxDim * relSize, 8);
+    const scale = targetMaxDim / Math.max(d.fw, d.fh);
+    const sw = d.fw * scale;
+    const sh = d.fh * scale;
+    totalArea += sw * sh;
+    return { ...d, scale, sw, sh };
+  });
+
+  // Irregular shapes pack inefficiently — bounding boxes have ~40-50% fill,
+  // and stacking leaves gaps. Use a low fill factor to compensate.
+  const fillFactor = 0.5; // slightly smaller so countries stack on Arne's arms
+  const boost = Math.sqrt(screenArea * fillFactor / totalArea);
+
+  colorIdx = 0;
+  countryShapes = {};
+  perCountry.forEach(d => {
+    const finalScale = d.scale * boost;
+    const sw = d.fw * finalScale;
+    const sh = d.fh * finalScale;
+
+    const scaledProj = d3.geoMercator()
+      .scale(proj.scale() * finalScale)
+      .translate([-d.x0 * finalScale, -d.y0 * finalScale]);
+    const scaledPath = d3.geoPath().projection(scaledProj);
+    const pathStr = scaledPath(d.feature);
+
+    // Use a circle for physics — packs much tighter than rectangle bounding boxes
+    const physRadius = Math.sqrt(sw * sh / Math.PI) * 0.75;
+
+    countryShapes[d.iso] = {
+      pathStr, width: Math.max(sw, 8), height: Math.max(sh, 8),
+      color: getColor(d.iso), name: d.name,
+      physRadius: Math.max(physRadius, 5),
+    };
+  });
+}
+
+function dropCountry(c) {
+  const shape = countryShapes[c.iso];
+  if (!shape) return;
+  // Drop safely within the inward-tilted walls (at the top, the opening
+  // is narrower than halfSpan because walls lean in)
+  const cx = arneDraw.x + arneDraw.w / 2;
+  const dropSpan = (arneDraw.halfSpan || arneDraw.w * 0.3) * 1.3;
+  const x = cx + (Math.random() - 0.5) * dropSpan;
+  const y = -shape.height - Math.random() * 100;
+
+  const body = Bodies.circle(x, y, shape.physRadius, {
+    restitution: 0.15, friction: 0.9, density: 0.002,
+    angle: (Math.random() - 0.5) * 0.5,
+  });
+
+  Body.setAngularVelocity(body, (Math.random() - 0.5) * 0.05);
+  Composite.add(engine.world, body);
+
+  droppedShapes.push({
+    body, pathStr: shape.pathStr,
+    width: shape.width, height: shape.height,
+    color: shape.color, name: shape.name,
+  });
+}
+
+// Flatten all countries into a single queue with year info
+let queue = []; // [{iso, name, year}]
+function buildQueue() {
+  queue = [];
+  countryData.forEach(yg => {
+    yg.countries.forEach(c => {
+      queue.push({ iso: c.iso, name: c.name, year: yg.year });
+    });
+  });
+}
+
+let queueIdx = -1;
+let dropTimer = null;
+const DROP_INTERVAL = 600; // ms between each country
+
+let finished = false;
+
+function dropNext() {
+  if (finished) {
+    window.parent.postMessage({ type: 'next-slide' }, '*');
+    return;
+  }
+  queueIdx++;
+  if (queueIdx >= queue.length) {
+    stopAuto();
+    finished = true;
+    // Clear country name, show final state
+    document.getElementById('country-name').textContent = '';
+    document.getElementById('year-display').innerHTML =
+      '2010\u20132025';
+    return;
+  }
+  const entry = queue[queueIdx];
+  dropCountry(entry);
+  totalCountries++;
+  document.getElementById('total-count').textContent = totalCountries;
+  document.getElementById('country-name').textContent = entry.name;
+  document.getElementById('year-display').innerHTML =
+    '<span>' + entry.year + '</span>';
+}
+
+function render() {
+  Engine.update(engine, 1000 / 60);
+
+  ctxMain.save();
+  ctxMain.setTransform(devicePixelRatio, 0, 0, devicePixelRatio, 0, 0);
+  ctxMain.clearRect(0, 0, W, H + 100);
+
+  // Draw cropped top-half of Arne first (behind falling countries)
+  if (arneImg.complete && arneImg.naturalWidth && arneDraw.w > 0) {
+    ctxMain.drawImage(
+      arneImg,
+      arneDraw.srcX, arneDraw.srcY, arneDraw.srcW, arneDraw.srcH,
+      arneDraw.x, arneDraw.y, arneDraw.w, arneDraw.h
+    );
+  }
+
+  for (const s of droppedShapes) {
+    const { x, y } = s.body.position;
+    const angle = s.body.angle;
+    ctxMain.save();
+    ctxMain.translate(x, y);
+    ctxMain.rotate(angle);
+    ctxMain.translate(-s.width / 2, -s.height / 2);
+
+    const p = new Path2D(s.pathStr);
+    ctxMain.fillStyle = s.color;
+    ctxMain.fill(p);
+    ctxMain.strokeStyle = 'rgba(255,255,255,0.6)';
+    ctxMain.lineWidth = 0.5;
+    ctxMain.stroke(p);
+
+    ctxMain.restore();
+  }
+
+  ctxMain.restore();
+  requestAnimationFrame(render);
+}
+
+// Controls
+let autoPlaying = false;
+
+function startAuto() {
+  if (autoPlaying) return;
+  autoPlaying = true;
+  dropTimer = setInterval(() => dropNext(), DROP_INTERVAL);
+}
+function stopAuto() {
+  autoPlaying = false;
+  if (dropTimer) { clearInterval(dropTimer); dropTimer = null; }
+}
+function fullReset() {
+  stopAuto();
+  queueIdx = -1;
+  totalCountries = 0;
+  finished = false;
+  droppedShapes = [];
+  Composite.clear(engine.world);
+  createWalls();
+  document.getElementById('total-count').textContent = '0';
+  document.getElementById('country-name').textContent = '';
+  document.getElementById('year-display').textContent = '';
+}
+function goBack() {
+  if (queueIdx <= 0) {
+    window.parent.postMessage({ type: 'prev-slide' }, '*');
+    return;
+  }
+  fullReset();
+  dropNext();
+}
+
+// Load and start
+d3.json("https://cdn.jsdelivr.net/npm/world-atlas@2/countries-50m.json").then(world => {
+  const features = topojson.feature(world, world.objects.countries).features;
+  precomputeRaw(features);
+  computeShapes();
+  buildQueue();
+  worldLoaded = true;
+  render();
+  setTimeout(() => { dropNext(); startAuto(); }, 300);
+});
+
+window.addEventListener('resize', () => {
+  getSize();
+  createWalls();
+  if (worldLoaded) computeShapes();
+});
+
+window.addEventListener('message', e => {
+  if (e.data === 'advance') { stopAuto(); dropNext(); }
+  if (e.data === 'back') goBack();
+});
+document.addEventListener('keydown', e => {
+  if (e.key === 'ArrowRight' || e.key === ' ') { e.preventDefault(); stopAuto(); dropNext(); }
+  if (e.key === 'ArrowLeft') { e.preventDefault(); goBack(); }
+});
+</script>
+</body>
+</html>

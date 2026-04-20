@@ -1,0 +1,529 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Citation Fireworks</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: #0b1830;
+    font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
+    overflow: hidden;
+    height: 100vh;
+    color: #f5f2e8;
+    display: flex;
+    flex-direction: column;
+  }
+  #header {
+    text-align: center;
+    padding: 14px 0 6px;
+    z-index: 10;
+    position: relative;
+  }
+  #header h2 {
+    font-size: 26px;
+    font-weight: 300;
+    letter-spacing: 0.3px;
+  }
+  #header h2 em { font-style: italic; font-weight: 400; }
+  #cite-big {
+    font-size: 64px;
+    font-weight: 700;
+    color: #ffd85a;
+    line-height: 1;
+    margin-top: 4px;
+  }
+  #cite-big .label {
+    font-size: 22px;
+    font-weight: 300;
+    color: #f5f2e8;
+    opacity: 0.75;
+    margin-left: 6px;
+    letter-spacing: 0.3px;
+  }
+  #year-display {
+    font-size: 22px;
+    font-weight: 400;
+    color: #f5d76e;
+    margin-top: 4px;
+    letter-spacing: 1.5px;
+  }
+  #canvas-wrap { flex: 1; position: relative; min-height: 0; }
+  canvas { width: 100%; height: 100%; display: block; }
+
+  #paper-label {
+    position: absolute;
+    left: 50%;
+    transform: translateX(-50%);
+    top: 24px;
+    text-align: center;
+    font-weight: 300;
+    opacity: 0;
+    transition: opacity 0.5s;
+    pointer-events: none;
+    max-width: 70%;
+    z-index: 5;
+  }
+  #paper-label .title {
+    font-size: 22px;
+    font-weight: 500;
+    color: #fff9e6;
+    font-style: italic;
+  }
+  #paper-label .author {
+    font-size: 18px;
+    margin-top: 4px;
+    color: #ffd85a;
+    font-weight: 400;
+  }
+</style>
+</head>
+<body>
+
+<div id="header">
+  <h2>Citations to papers in <em>Social Forces</em></h2>
+  <div id="cite-big"><span id="cite-count">0</span><span class="label">citations</span></div>
+  <div id="year-display">2010</div>
+</div>
+
+<div id="canvas-wrap">
+  <canvas id="sky"></canvas>
+  <div id="paper-label"><div class="title"></div><div class="author"></div></div>
+</div>
+
+<script>
+// Inlined data ---------------------------------------------------------------
+const PAPERS = [[2012, 880], [2011, 642], [2010, 444], [2015, 432], [2014, 402], [2010, 397], [2013, 389], [2015, 386], [2010, 363], [2015, 341], [2020, 307], [2010, 301], [2011, 295], [2014, 290], [2020, 289], [2013, 286], [2018, 278], [2010, 270], [2017, 250], [2016, 238], [2010, 236], [2015, 234], [2010, 230], [2017, 225], [2010, 221], [2011, 218], [2013, 217], [2014, 214], [2018, 210], [2012, 203], [2019, 201], [2011, 200], [2019, 200], [2014, 199], [2015, 193], [2010, 193], [2018, 192], [2010, 190], [2015, 189], [2012, 188], [2013, 186], [2014, 185], [2011, 184], [2012, 184], [2012, 178], [2015, 175], [2013, 174], [2010, 172], [2016, 170], [2013, 169], [2014, 168], [2020, 166], [2010, 165], [2010, 165], [2012, 160], [2017, 157], [2010, 156], [2015, 156], [2012, 156], [2018, 156], [2011, 155], [2018, 154], [2010, 150], [2015, 150], [2018, 147], [2011, 146], [2015, 146], [2010, 145], [2019, 143], [2013, 142], [2010, 142], [2010, 142], [2012, 141], [2018, 141], [2016, 140], [2013, 139], [2013, 139], [2010, 138], [2010, 138], [2015, 137], [2018, 136], [2011, 135], [2014, 135], [2011, 130], [2012, 128], [2012, 126], [2011, 126], [2016, 125], [2018, 125], [2020, 125], [2013, 124], [2014, 124], [2011, 123], [2018, 123], [2014, 122], [2011, 121], [2018, 121], [2012, 120], [2018, 119], [2011, 117], [2010, 117], [2011, 116], [2012, 116], [2016, 116], [2013, 115], [2016, 114], [2014, 112], [2010, 112], [2010, 111], [2015, 111], [2012, 110], [2014, 110], [2013, 110], [2017, 110], [2017, 110], [2019, 109], [2011, 108], [2014, 107], [2013, 106], [2017, 105], [2011, 104], [2017, 104], [2019, 103], [2017, 101], [2013, 100], [2011, 100], [2018, 100], [2013, 99], [2016, 98], [2016, 97], [2014, 96], [2014, 96], [2010, 96], [2010, 95], [2014, 94], [2019, 94], [2020, 94], [2020, 93], [2018, 92], [2018, 91], [2014, 90], [2013, 90], [2015, 90], [2018, 90], [2011, 89], [2014, 89], [2020, 89], [2010, 88], [2014, 88], [2016, 87], [2016, 87], [2019, 87], [2016, 85], [2018, 85], [2021, 85], [2012, 84], [2015, 83], [2012, 83], [2015, 82], [2015, 80], [2017, 80], [2018, 80], [2018, 80], [2018, 80], [2012, 79], [2016, 79], [2015, 77], [2017, 77], [2020, 77], [2014, 76], [2018, 76], [2019, 76], [2015, 75], [2015, 75], [2016, 75], [2011, 75], [2018, 75], [2014, 74], [2015, 74], [2015, 73], [2015, 72], [2020, 72], [2010, 71], [2012, 71], [2018, 71], [2010, 70], [2020, 70], [2013, 69], [2013, 68], [2016, 68], [2018, 68], [2018, 68], [2018, 68], [2020, 68], [2011, 67], [2021, 67], [2016, 66], [2017, 66], [2018, 66], [2014, 65], [2020, 65], [2020, 65], [2021, 65], [2015, 64], [2018, 64], [2010, 63], [2018, 63], [2019, 63], [2016, 62], [2017, 62], [2020, 62], [2019, 61], [2012, 59], [2011, 59], [2017, 59], [2017, 59], [2020, 59], [2016, 58], [2016, 58], [2011, 56], [2019, 56], [2019, 55], [2016, 54], [2016, 53], [2019, 53], [2018, 52], [2021, 52], [2019, 51], [2021, 49], [2013, 48], [2016, 48], [2018, 48], [2018, 48], [2022, 48], [2018, 47], [2015, 46], [2018, 46], [2011, 45], [2016, 45], [2017, 45], [2018, 45], [2020, 45], [2019, 45], [2021, 45], [2022, 45], [2023, 44], [2017, 43], [2017, 43], [2021, 43], [2016, 42], [2020, 42], [2021, 41], [2022, 41], [2023, 41], [2019, 40], [2020, 40], [2012, 39], [2016, 39], [2017, 39], [2020, 39], [2021, 39], [2022, 39], [2014, 38], [2013, 38], [2017, 37], [2019, 37], [2019, 37], [2010, 35], [2011, 35], [2017, 34], [2022, 34], [2013, 33], [2016, 33], [2017, 32], [2019, 32], [2015, 31], [2018, 31], [2012, 30], [2022, 30], [2023, 30], [2018, 29], [2020, 29], [2017, 28], [2021, 28], [2022, 27], [2011, 26], [2022, 26], [2022, 26], [2016, 25], [2021, 24], [2022, 24], [2020, 23], [2022, 23], [2017, 21], [2023, 20], [2024, 19], [2017, 18], [2021, 18], [2022, 18], [2023, 18], [2018, 17], [2018, 16], [2024, 15], [2023, 14], [2023, 13], [2023, 13], [2024, 12], [2021, 11], [2024, 11], [2024, 11], [2024, 8], [2024, 7], [2025, 5], [2025, 5], [2024, 3], [2010, 115], [2013, 108], [2011, 104], [2013, 102], [2010, 102], [2011, 101], [2011, 100], [2011, 99], [2011, 99], [2011, 99], [2012, 98], [2011, 96], [2014, 91], [2013, 91], [2011, 89], [2010, 88], [2015, 87], [2012, 86], [2014, 84], [2010, 82], [2011, 78], [2014, 78], [2014, 78], [2012, 78], [2010, 76], [2016, 76], [2011, 74], [2013, 72], [2012, 72], [2012, 71], [2014, 71], [2014, 70], [2015, 70], [2014, 69], [2014, 68], [2012, 67], [2016, 67], [2017, 67], [2011, 66], [2011, 66], [2010, 65], [2011, 65], [2014, 65], [2014, 65], [2010, 64], [2011, 63], [2010, 63], [2013, 62], [2017, 62], [2018, 62], [2011, 61], [2018, 61], [2011, 60], [2013, 60], [2015, 60], [2016, 60], [2016, 60], [2013, 59], [2014, 59], [2012, 59], [2017, 59], [2017, 58], [2012, 57], [2019, 57], [2010, 56], [2013, 56], [2016, 56], [2018, 56], [2018, 56], [2011, 55], [2012, 55], [2010, 55], [2013, 55], [2015, 55], [2012, 54], [2017, 54], [2017, 54], [2010, 53], [2013, 53], [2012, 53], [2010, 53], [2014, 53], [2013, 53], [2016, 53], [2016, 53], [2011, 52], [2010, 52], [2014, 52], [2013, 52], [2012, 52], [2016, 52], [2017, 52], [2013, 51], [2010, 51], [2011, 51], [2013, 51], [2013, 51], [2016, 51], [2018, 51], [2020, 51], [2015, 50], [2017, 50], [2018, 50], [2014, 49], [2015, 49], [2010, 49], [2016, 49], [2012, 48], [2010, 48], [2014, 48], [2015, 48], [2019, 48], [2013, 47], [2016, 47], [2019, 47], [2015, 46], [2015, 46], [2016, 46], [2019, 46], [2019, 46], [2012, 45], [2013, 45], [2013, 45], [2015, 45], [2017, 45], [2017, 45], [2018, 45], [2018, 45], [2011, 44], [2012, 44], [2011, 44], [2014, 44], [2011, 43], [2012, 43], [2012, 43], [2014, 43], [2014, 43], [2018, 43], [2018, 43], [2018, 43], [2018, 43], [2018, 43], [2019, 43], [2013, 42], [2015, 42], [2010, 42], [2014, 42], [2015, 42], [2015, 42], [2015, 42], [2017, 42], [2019, 42], [2011, 42], [2015, 41], [2012, 41], [2016, 41], [2017, 41], [2018, 41], [2010, 40], [2010, 40], [2018, 40], [2018, 40], [2019, 40], [2013, 39], [2012, 39], [2012, 39], [2012, 39], [2016, 39], [2016, 39], [2017, 39], [2018, 39], [2019, 39], [2020, 39], [2011, 38], [2013, 38], [2013, 38], [2016, 38], [2017, 38], [2021, 38], [2020, 38], [2013, 37], [2010, 37], [2012, 37], [2016, 37], [2017, 37], [2018, 37], [2018, 37], [2019, 37], [2021, 37], [2014, 36], [2018, 36], [2019, 36], [2019, 36], [2020, 36], [2020, 36], [2015, 35], [2010, 35], [2018, 35], [2019, 35], [2021, 35], [2014, 34], [2016, 34], [2016, 34], [2017, 34], [2018, 34], [2012, 33], [2012, 33], [2013, 33], [2018, 33], [2019, 33], [2019, 33], [2010, 32], [2010, 32], [2017, 32], [2017, 32], [2017, 32], [2019, 32], [2014, 31], [2010, 31], [2016, 31], [2017, 31], [2017, 31], [2020, 31], [2020, 31], [2021, 31], [2021, 31], [2021, 31], [2022, 31], [2013, 30], [2010, 30], [2014, 30], [2012, 30], [2017, 30], [2014, 29], [2011, 29], [2014, 29], [2012, 29], [2016, 29], [2010, 28], [2016, 28], [2016, 28], [2017, 28], [2017, 28], [2020, 28], [2013, 27], [2012, 27], [2017, 27], [2019, 27], [2019, 27], [2019, 27], [2023, 27], [2022, 27], [2012, 26], [2015, 26], [2012, 26], [2010, 26], [2017, 26], [2017, 26], [2018, 26], [2019, 26], [2019, 26], [2020, 26], [2019, 26], [2013, 25], [2015, 25], [2015, 25], [2016, 25], [2016, 25], [2017, 25], [2017, 25], [2018, 25], [2021, 25], [2020, 25], [2023, 25], [2014, 24], [2014, 24], [2014, 24], [2015, 24], [2016, 24], [2016, 24], [2018, 24], [2018, 24], [2018, 24], [2020, 24], [2021, 24], [2021, 24], [2022, 24], [2020, 23], [2011, 23], [2014, 23], [2014, 23], [2017, 23], [2018, 23], [2020, 23], [2019, 23], [2020, 23], [2020, 23], [2020, 23], [2020, 23], [2021, 23], [2021, 23], [2014, 22], [2017, 22], [2017, 22], [2017, 22], [2018, 22], [2019, 22], [2020, 22], [2020, 22], [2020, 22], [2014, 21], [2016, 21], [2018, 21], [2019, 21], [2021, 21], [2021, 21], [2012, 20], [2015, 20], [2017, 20], [2018, 20], [2018, 20], [2018, 20], [2020, 20], [2020, 20], [2020, 20], [2018, 19], [2018, 19], [2018, 19], [2019, 19], [2020, 19], [2020, 19], [2021, 19], [2021, 19], [2022, 19], [2018, 18], [2018, 18], [2018, 18], [2019, 18], [2020, 18], [2021, 18], [2022, 18], [2023, 18], [2013, 17], [2020, 17], [2020, 17], [2020, 17], [2021, 17], [2021, 17], [2021, 17], [2021, 17], [2022, 17], [2022, 17], [2023, 17], [2017, 17], [2014, 16], [2015, 16], [2016, 16], [2019, 16], [2020, 16], [2020, 16], [2021, 16], [2022, 16], [2021, 16], [2022, 16], [2014, 15], [2020, 15], [2020, 15], [2021, 15], [2021, 15], [2021, 15], [2023, 15], [2015, 14], [2019, 14], [2020, 14], [2020, 14], [2021, 14], [2021, 14], [2021, 14], [2021, 14], [2022, 14], [2023, 14], [2024, 14], [2014, 13], [2013, 13], [2018, 13], [2019, 13], [2020, 13], [2020, 13], [2021, 13], [2021, 13], [2023, 13], [2023, 13], [2015, 12], [2020, 12], [2021, 12], [2021, 12], [2022, 12], [2023, 12], [2023, 12], [2023, 12], [2013, 11], [2015, 11], [2018, 11], [2019, 11], [2022, 11], [2023, 11], [2024, 11], [2019, 10], [2021, 10], [2021, 10], [2021, 10], [2022, 10], [2022, 10], [2022, 10], [2023, 10], [2024, 10], [2019, 9], [2019, 9], [2021, 9], [2022, 9], [2023, 9], [2023, 9], [2023, 9], [2014, 8], [2022, 8], [2022, 8], [2023, 8], [2020, 7], [2021, 7], [2022, 7], [2023, 7], [2024, 7], [2025, 7], [2018, 6], [2020, 6], [2020, 6], [2023, 6], [2025, 6], [2017, 5], [2020, 5], [2021, 5], [2021, 5], [2022, 5], [2022, 5], [2022, 5], [2023, 5], [2024, 5], [2025, 5], [2020, 4], [2021, 4], [2022, 4], [2023, 4], [2024, 4], [2024, 4], [2024, 4], [2024, 4], [2024, 4], [2024, 4], [2024, 4], [2024, 4], [2025, 4], [2025, 4], [2023, 3], [2023, 3], [2023, 3], [2023, 3], [2023, 3], [2024, 3], [2024, 3], [2024, 3], [2024, 3], [2024, 3], [2024, 3], [2024, 3], [2025, 3], [2025, 3], [2025, 3], [2025, 3], [2025, 3], [2019, 2], [2023, 2], [2024, 2], [2024, 2], [2024, 2], [2025, 2], [2025, 2], [2025, 2], [2025, 2], [2025, 2], [2025, 2], [2024, 1], [2024, 1], [2024, 1], [2024, 1], [2025, 1], [2025, 1], [2025, 1], [2025, 1], [2025, 1], [2025, 1], [2025, 1], [2025, 1], [2025, 1], [2025, 1], [2013, 43], [2010, 40], [2012, 40], [2010, 38], [2010, 35], [2011, 35], [2011, 35], [2010, 33], [2016, 33], [2011, 32], [2015, 31], [2012, 31], [2014, 31], [2014, 29], [2010, 29], [2012, 29], [2010, 28], [2010, 27], [2012, 27], [2014, 26], [2013, 26], [2010, 25], [2010, 25], [2015, 25], [2010, 25], [2014, 25], [2015, 24], [2013, 23], [2012, 23], [2010, 23], [2017, 23], [2017, 23], [2018, 23], [2018, 23], [2011, 23], [2015, 22], [2018, 22], [2019, 22], [2014, 21], [2012, 21], [2010, 21], [2010, 21], [2018, 21], [2011, 20], [2013, 20], [2011, 20], [2018, 20], [2018, 20], [2011, 19], [2017, 19], [2013, 18], [2012, 18], [2016, 18], [2018, 18], [2018, 18], [2020, 18], [2010, 17], [2013, 17], [2015, 17], [2020, 17], [2020, 17], [2020, 17], [2020, 17], [2020, 17], [2013, 16], [2017, 16], [2017, 16], [2017, 16], [2020, 16], [2020, 16], [2019, 16], [2020, 16], [2017, 15], [2018, 15], [2018, 15], [2020, 15], [2021, 15], [2019, 14], [2020, 14], [2020, 14], [2011, 13], [2015, 13], [2015, 13], [2017, 13], [2020, 13], [2021, 13], [2015, 12], [2017, 12], [2017, 12], [2018, 12], [2019, 12], [2013, 11], [2012, 11], [2018, 11], [2021, 11], [2021, 10], [2021, 10], [2018, 9], [2020, 9], [2021, 9], [2021, 9], [2018, 8], [2021, 8], [2022, 8], [2012, 7], [2023, 7], [2018, 6], [2023, 6], [2023, 5], [2024, 5], [2024, 5], [2024, 4], [2024, 4], [2024, 4], [2025, 4], [2025, 4], [2025, 1], [2010, 25], [2010, 23], [2010, 22], [2011, 21], [2013, 20], [2018, 19], [2011, 18], [2017, 18], [2018, 18], [2013, 17], [2010, 17], [2013, 17], [2015, 17], [2016, 17], [2014, 16], [2014, 16], [2013, 16], [2015, 16], [2014, 15], [2013, 15], [2017, 15], [2012, 14], [2012, 14], [2015, 14], [2016, 14], [2017, 14], [2010, 13], [2015, 13], [2016, 13], [2017, 13], [2018, 13], [2020, 13], [2014, 12], [2015, 12], [2019, 12], [2020, 12], [2014, 11], [2014, 11], [2011, 11], [2017, 11], [2017, 11], [2018, 11], [2019, 11], [2019, 11], [2020, 11], [2020, 11], [2014, 10], [2013, 10], [2011, 10], [2016, 10], [2018, 10], [2019, 10], [2019, 10], [2016, 9], [2017, 9], [2018, 9], [2019, 9], [2019, 9], [2022, 9], [2017, 8], [2018, 8], [2019, 8], [2020, 8], [2020, 8], [2019, 8], [2020, 8], [2020, 8], [2011, 8], [2014, 7], [2015, 7], [2018, 7], [2018, 7], [2018, 7], [2020, 7], [2023, 7], [2023, 7], [2015, 6], [2018, 6], [2018, 6], [2019, 6], [2023, 6], [2021, 5], [2022, 5], [2022, 5], [2023, 5], [2023, 5], [2023, 5], [2023, 5], [2012, 4], [2018, 4], [2022, 4], [2024, 4], [2024, 4], [2024, 4], [2022, 3], [2024, 3], [2024, 3], [2025, 3], [2010, 14], [2017, 11], [2020, 10], [2012, 10], [2015, 10], [2018, 10], [2017, 9], [2011, 8], [2020, 8], [2012, 7], [2010, 7], [2016, 7], [2016, 7], [2016, 7], [2017, 7], [2018, 7], [2019, 7], [2020, 7], [2021, 7], [2016, 6], [2017, 6], [2018, 6], [2019, 6], [2019, 6], [2013, 5], [2017, 5], [2017, 5], [2018, 5], [2020, 5], [2018, 5], [2020, 5], [2020, 5], [2021, 5], [2017, 4], [2020, 4], [2020, 4], [2021, 4], [2021, 4], [2022, 4], [2024, 4], [2024, 4], [2015, 3], [2018, 3], [2021, 3], [2022, 3], [2011, 3], [2022, 3], [2022, 3], [2022, 3], [2023, 3], [2023, 3], [2023, 3], [2024, 3], [2024, 3], [2012, 2], [2021, 2], [2021, 2], [2021, 2], [2022, 2], [2023, 2], [2023, 2], [2024, 2], [2024, 2], [2024, 2], [2024, 2], [2024, 2], [2024, 2], [2025, 2], [2025, 2], [2025, 2], [2016, 6], [2018, 6], [2018, 5], [2010, 4], [2016, 4], [2019, 4], [2020, 4], [2019, 4], [2020, 4], [2022, 3], [2012, 2], [2016, 2], [2022, 2], [2025, 2], [2019, 1], [2020, 1], [2024, 1], [2022, 1], [2022, 1], [2023, 1], [2023, 1], [2023, 1], [2023, 1], [2023, 1], [2024, 1], [2024, 1], [2024, 1], [2024, 1], [2024, 1], [2024, 1], [2024, 1], [2024, 1], [2024, 1], [2024, 1], [2025, 1], [2025, 1], [2025, 1], [2025, 1], [2025, 1], [2025, 1], [2025, 1], [2025, 1], [2025, 1], [2025, 1], [2025, 1], [2025, 1], [2025, 1], [2014, 6], [2010, 4], [2015, 3], [2017, 3], [2022, 3], [2013, 2], [2013, 2], [2016, 2], [2016, 2], [2017, 2], [2017, 2], [2018, 2], [2020, 2], [2021, 2], [2022, 2], [2014, 1], [2015, 1], [2012, 1], [2014, 1], [2013, 1], [2013, 1], [2013, 1], [2015, 1], [2015, 1], [2013, 1], [2014, 1], [2013, 1], [2014, 1], [2013, 1], [2014, 1], [2012, 1], [2012, 1], [2012, 1], [2013, 1], [2016, 1], [2015, 1], [2015, 1], [2014, 1], [2016, 1], [2016, 1], [2016, 1], [2016, 1], [2017, 1], [2017, 1], [2017, 1], [2018, 1], [2018, 1], [2018, 1], [2018, 1], [2019, 1], [2021, 1], [2020, 1], [2021, 1], [2021, 1], [2022, 1], [2023, 1], [2023, 1], [2022, 1], [2023, 1], [2023, 1], [2024, 1], [2024, 1], [2024, 1], [2024, 1], [2012, 1], [2014, 1], [2019, 1], [2014, 0], [2012, 0], [2015, 0], [2014, 0], [2014, 0], [2012, 0], [2012, 0], [2013, 0], [2014, 0], [2013, 0], [2012, 0], [2012, 0], [2014, 0], [2015, 0], [2015, 0], [2014, 0], [2012, 0], [2014, 0], [2014, 0], [2012, 0], [2012, 0], [2011, 0], [2013, 0], [2013, 0], [2013, 0], [2012, 0], [2012, 0], [2014, 0], [2014, 0], [2013, 0], [2012, 0], [2014, 0], [2013, 0], [2014, 0], [2014, 0], [2014, 0], [2014, 0], [2014, 0], [2013, 0], [2015, 0], [2012, 0], [2014, 0], [2014, 0], [2014, 0], [2013, 0], [2012, 0], [2014, 0], [2013, 0], [2013, 0], [2015, 0], [2013, 0], [2012, 0], [2013, 0], [2013, 0], [2014, 0], [2013, 0], [2014, 0], [2015, 0], [2014, 0], [2014, 0], [2014, 0], [2015, 0], [2014, 0], [2014, 0], [2013, 0], [2013, 0], [2013, 0], [2012, 0], [2013, 0], [2014, 0], [2012, 0], [2013, 0], [2012, 0], [2013, 0], [2014, 0], [2014, 0], [2014, 0], [2014, 0], [2014, 0], [2012, 0], [2014, 0], [2012, 0], [2015, 0], [2015, 0], [2014, 0], [2015, 0], [2013, 0], [2013, 0], [2014, 0], [2013, 0], [2012, 0], [2015, 0], [2013, 0], [2012, 0], [2014, 0], [2013, 0], [2014, 0], [2012, 0], [2013, 0], [2013, 0], [2014, 0], [2013, 0], [2014, 0], [2012, 0], [2012, 0], [2013, 0], [2013, 0], [2013, 0], [2013, 0], [2013, 0], [2014, 0], [2014, 0], [2014, 0], [2013, 0], [2013, 0], [2013, 0], [2012, 0], [2012, 0], [2014, 0], [2013, 0], [2014, 0], [2012, 0], [2013, 0], [2011, 0], [2014, 0], [2012, 0], [2012, 0], [2012, 0], [2014, 0], [2013, 0], [2012, 0], [2013, 0], [2012, 0], [2012, 0], [2012, 0], [2013, 0], [2012, 0], [2012, 0], [2012, 0], [2011, 0], [2014, 0], [2012, 0], [2014, 0], [2014, 0], [2012, 0], [2012, 0], [2012, 0], [2015, 0], [2014, 0], [2012, 0], [2013, 0], [2013, 0], [2012, 0], [2013, 0], [2014, 0], [2012, 0], [2013, 0], [2012, 0], [2015, 0], [2013, 0], [2013, 0], [2013, 0], [2012, 0], [2014, 0], [2012, 0], [2013, 0], [2012, 0], [2011, 0], [2012, 0], [2013, 0], [2012, 0], [2012, 0], [2013, 0], [2013, 0], [2014, 0], [2012, 0], [2012, 0], [2013, 0], [2013, 0], [2012, 0], [2012, 0], [2013, 0], [2012, 0], [2012, 0], [2012, 0], [2012, 0], [2014, 0], [2012, 0], [2014, 0], [2012, 0], [2013, 0], [2013, 0], [2013, 0], [2012, 0], [2013, 0], [2013, 0], [2012, 0], [2013, 0], [2013, 0], [2013, 0], [2013, 0], [2012, 0], [2012, 0], [2012, 0], [2012, 0], [2011, 0], [2013, 0], [2013, 0], [2013, 0], [2012, 0], [2014, 0], [2012, 0], [2012, 0], [2012, 0], [2012, 0], [2012, 0], [2012, 0], [2015, 0], [2013, 0], [2015, 0], [2015, 0], [2015, 0], [2015, 0], [2015, 0], [2015, 0], [2016, 0], [2016, 0], [2013, 0], [2015, 0], [2016, 0], [2016, 0], [2014, 0], [2016, 0], [2016, 0], [2014, 0], [2016, 0], [2016, 0], [2016, 0], [2014, 0], [2015, 0], [2013, 0], [2016, 0], [2016, 0], [2015, 0], [2016, 0], [2015, 0], [2015, 0], [2015, 0], [2015, 0], [2015, 0], [2015, 0], [2015, 0], [2016, 0], [2017, 0], [2016, 0], [2015, 0], [2015, 0], [2016, 0], [2016, 0], [2016, 0], [2016, 0], [2017, 0], [2016, 0], [2017, 0], [2017, 0], [2020, 0], [2017, 0], [2017, 0], [2017, 0], [2017, 0], [2017, 0], [2017, 0], [2017, 0], [2017, 0], [2017, 0], [2017, 0], [2017, 0], [2017, 0], [2017, 0], [2017, 0], [2017, 0], [2017, 0], [2017, 0], [2017, 0], [2017, 0], [2017, 0], [2017, 0], [2017, 0], [2017, 0], [2017, 0], [2017, 0], [2017, 0], [2017, 0], [2017, 0], [2017, 0], [2017, 0], [2017, 0], [2017, 0], [2017, 0], [2017, 0], [2018, 0], [2018, 0], [2018, 0], [2018, 0], [2018, 0], [2018, 0], [2018, 0], [2019, 0], [2019, 0], [2019, 0], [2019, 0], [2019, 0], [2019, 0], [2019, 0], [2019, 0], [2019, 0], [2019, 0], [2019, 0], [2019, 0], [2019, 0], [2019, 0], [2019, 0], [2019, 0], [2019, 0], [2019, 0], [2019, 0], [2019, 0], [2019, 0], [2019, 0], [2020, 0], [2016, 0], [2020, 0], [2020, 0], [2020, 0], [2017, 0], [2021, 0], [2021, 0], [2021, 0], [2013, 0], [2021, 0], [2012, 0], [2012, 0], [2015, 0], [2012, 0], [2015, 0], [2016, 0], [2016, 0], [2012, 0], [2013, 0], [2012, 0], [2011, 0], [2015, 0], [2015, 0], [2015, 0], [2019, 0], [2012, 0], [2014, 0], [2015, 0], [2013, 0], [2014, 0], [2016, 0], [2012, 0], [2012, 0], [2013, 0], [2012, 0], [2012, 0], [2012, 0], [2013, 0], [2014, 0], [2012, 0], [2014, 0], [2012, 0], [2014, 0], [2014, 0], [2013, 0], [2015, 0], [2012, 0], [2015, 0], [2013, 0], [2011, 0], [2012, 0], [2014, 0], [2014, 0], [2013, 0], [2013, 0], [2011, 0], [2023, 0], [2023, 0], [2023, 0], [2023, 0], [2023, 0], [2023, 0], [2024, 0], [2024, 0], [2024, 0], [2024, 0], [2024, 0], [2024, 0], [2024, 0], [2024, 0], [2024, 0], [2024, 0], [2024, 0], [2024, 0], [2024, 0], [2024, 0], [2025, 0], [2025, 0], [2024, 0], [2025, 0], [2025, 0], [2025, 0], [2025, 0], [2025, 0], [2025, 0], [2025, 0], [2025, 0], [2025, 0], [2025, 0], [2025, 0], [2025, 0], [2025, 0], [2025, 0], [2025, 0], [2025, 0], [2025, 0], [2025, 0], [2025, 0], [2025, 0], [2025, 0], [2025, 0], [2025, 0], [2025, 0], [2025, 0], [2025, 0], [2025, 0], [2025, 0], [2025, 0], [2025, 0], [2025, 0], [2025, 0], [2025, 0], [2025, 0], [2025, 0], [2025, 0], [2025, 0], [2025, 0], [2025, 0], [2025, 0], [2025, 0], [2025, 0], [2025, 0], [2025, 0], [2025, 0], [2025, 0], [2025, 0], [2025, 0], [2025, 0], [2025, 0], [2025, 0], [2025, 0], [2025, 0], [2025, 0], [2025, 0], [2025, 0], [2025, 0], [2025, 0], [2025, 0], [2025, 0], [2025, 0], [2025, 0], [2025, 0], [2025, 0], [2025, 0]];
+const LABELS = [{"year": 2012, "cites": 880, "author": "Stephen Bianchi", "title": "Housework: Who Did, Does or Will Do It, and How Much Does It Matter?"}, {"year": 2011, "cites": 642, "author": "F. Chen", "title": "Intergenerational Ties in Context: Grandparents Caring for Grandchildren in China"}, {"year": 2010, "cites": 444, "author": "Claudia Buchmann", "title": "Shadow Education, American Style: Test Preparation, the SAT and College Enrollment"}, {"year": 2015, "cites": 432, "author": "Matthew Desmond", "title": "Eviction's Fallout: Housing, Hardship, and Health"}, {"year": 2014, "cites": 402, "author": "S. Michael Gaddis", "title": "Discrimination in the Credential Society: An Audit Study of Race and College Selectivity in the Labor Market"}, {"year": 2013, "cites": 389, "author": "A Branigan", "title": "Variation in the Heritability of Educational Attainment: An International Meta-Analysis"}, {"year": 2020, "cites": 307, "author": "Hugo Mercier", "title": "Not Born Yesterday: The Science of Who We Trust and What We Believe"}, {"year": 2018, "cites": 278, "author": "Patrick Ishizuka", "title": "Social Class, Gender, and Contemporary Parenting Standards in the United States: Evidence from a National Survey Experiment"}, {"year": 2017, "cites": 250, "author": "Katherine Weisshaar", "title": "Publish and Perish? An Assessment of Gender Gaps in Promotion to Tenure in Academia"}, {"year": 2016, "cites": 238, "author": "Penny Edgell", "title": "Atheists and Other Cultural Outsiders: Moral Boundaries and the Non-Religious in the United States"}, {"year": 2019, "cites": 201, "author": "Michael L. Rosino", "title": "Algorithms of Oppression: How Search Engines Reinforce Racism"}, {"year": 2021, "cites": 85, "author": "Martin H\u00e4llsten", "title": "Wealth as One of the \u201cBig Four\u201d SES Dimensions in Intergenerational Transmissions"}, {"year": 2022, "cites": 48, "author": "Francesco Molteni", "title": "Religious Decline as a Population Dynamic: Generational Replacement and Religious Attendance in Europe"}, {"year": 2023, "cites": 44, "author": "Andrei Boutyline", "title": "School, Studying, and Smarts: Gender Stereotypes and Education Across 80\u00a0Years of American Print Media, 1930\u20132009"}, {"year": 2024, "cites": 19, "author": "Ansgar Hudde", "title": "Why do partners often prefer the same political parties? Evidence from couples in Germany"}, {"year": 2025, "cites": 7, "author": "Samuel L. Perry", "title": "The religion of White identity politics: Christian nationalism and White racial solidarity"}];
+const TOTAL_PAPERS = 1692;
+const TOTAL_CITES = 53133;
+
+// Build a lookup: (year, cites) -> label info, so we can flash the title when
+// a top paper bursts. We match by (year, cites) — unique enough for the top set.
+const labelLookup = {};
+for (const l of LABELS) labelLookup[l.year + ':' + l.cites] = l;
+
+// Group papers by year, sorted within year by cites descending (big ones first)
+const papersByYear = {};
+for (const [yr, cites] of PAPERS) {
+  (papersByYear[yr] = papersByYear[yr] || []).push(cites);
+}
+for (const yr in papersByYear) papersByYear[yr].sort((a, b) => b - a);
+
+const YEARS = Object.keys(papersByYear).map(Number).sort((a, b) => a - b);
+
+// ---------------------------------------------------------------------------
+const canvas = document.getElementById('sky');
+const ctx = canvas.getContext('2d');
+let W, H;
+
+function resize() {
+  const wrap = document.getElementById('canvas-wrap');
+  W = wrap.clientWidth;
+  H = wrap.clientHeight;
+  canvas.width = W * devicePixelRatio;
+  canvas.height = H * devicePixelRatio;
+  canvas.style.width = W + 'px';
+  canvas.style.height = H + 'px';
+  ctx.setTransform(devicePixelRatio, 0, 0, devicePixelRatio, 0, 0);
+}
+resize();
+window.addEventListener('resize', resize);
+
+// Firework palette (saturated, glowy)
+const PALETTE = [
+  '#ff6b6b', '#ffd85a', '#ffa94d', '#ff8ac1',
+  '#4dd0e1', '#74f0a6', '#b388ff', '#ffffff',
+  '#9be15d', '#f06292',
+];
+function pick(arr) { return arr[Math.floor(Math.random() * arr.length)]; }
+
+// Particle pools
+let shells = [];   // rising launches
+let sparks = [];   // exploded particles
+
+// Firework "style" buckets — give each shell its own personality
+const STYLES = ['peony', 'chrysanthemum', 'ring', 'willow', 'crossette', 'palm'];
+
+function chooseStyle(cites) {
+  if (cites <= 2)   return 'fizzle';   // 0–2 cites: barely pops
+  if (cites >= 300) return pick(['chrysanthemum', 'willow', 'crossette', 'ring', 'peony']);
+  if (cites >= 50)  return pick(['peony', 'chrysanthemum', 'ring', 'palm']);
+  if (cites >= 10)  return pick(['peony', 'peony', 'ring', 'chrysanthemum']);
+  return 'peony';
+}
+
+function launchShell(cites, opts = {}) {
+  const startX = W * (0.08 + Math.random() * 0.84);
+  const startY = H + 10;
+  // Burst altitude now depends STEEPLY on cites:
+  //   0 cites  -> ~80% down (low, near bottom)
+  //   10 cites -> ~55% down (mid)
+  //   100      -> ~30% down
+  //   880      -> ~12% down (sky-high)
+  const magnitude = Math.log10(cites + 2);                       // 0.3..~2.95
+  const heightBase = Math.max(0.10, 0.88 - magnitude * 0.26);
+  const jitter = (Math.random() - 0.5) * 0.08;                   // small jitter only
+  const burstY = H * Math.max(0.08, Math.min(0.85, heightBase + jitter));
+  const vx = (Math.random() - 0.5) * 1.4;
+  const vy = -(Math.sqrt(2 * 0.18 * (startY - burstY)));
+  const color = pick(PALETTE);
+  shells.push({
+    x: startX, y: startY, vx, vy,
+    burstY, color, cites,
+    trail: [],
+    labelKey: opts.labelKey || null,
+    style: chooseStyle(cites),
+  });
+}
+
+function addSpark(x, y, vx, vy, color, opts = {}) {
+  sparks.push({
+    x, y, vx, vy,
+    life: opts.life || 1.0,
+    decay: opts.decay || (0.009 + Math.random() * 0.014),
+    color,
+    size: opts.size || (1.4 + Math.random() * 1.6),
+    isFlash: false,
+    trailed: !!opts.trailed,
+    trailFade: opts.trailFade || 0,
+    gravity: opts.gravity == null ? 0.05 : opts.gravity,
+    drag: opts.drag == null ? 0.985 : opts.drag,
+    crackle: opts.crackle || 0,
+  });
+}
+
+function burst(shell) {
+  const cites = shell.cites;
+  const hue = shell.color;
+  const hue2 = Math.random() < 0.45 ? pick(PALETTE) : hue;
+  const mag = Math.log2(cites + 1);                     // 0..~9.8
+  const baseN = Math.round(14 + mag * 10);              // 14..120
+  const baseSpd = 2.2 + Math.min(5, mag * 0.5);         // 2..7
+
+  // Bright flash
+  sparks.push({
+    x: shell.x, y: shell.y, vx: 0, vy: 0,
+    life: 1.0, decay: 0.05, color: '#ffffff',
+    size: 6 + mag * 1.8, isFlash: true,
+  });
+
+  const style = shell.style;
+
+  if (style === 'fizzle') {
+    // Dud: tiny weak pop, dim color, few sparks, quick fade — no flash
+    sparks.pop(); // remove the bright flash we just added
+    const n = 3 + Math.floor(Math.random() * 4);
+    for (let i = 0; i < n; i++) {
+      const ang = Math.random() * Math.PI * 2;
+      const spd = 0.8 + Math.random() * 1.0;
+      addSpark(shell.x, shell.y,
+        Math.cos(ang) * spd, Math.sin(ang) * spd,
+        'rgba(200,200,200,0.85)',
+        { decay: 0.04 + Math.random() * 0.03, size: 1.0 + Math.random() * 0.6,
+          gravity: 0.08 });
+    }
+    return;
+  }
+
+  if (style === 'ring') {
+    // Perfect circle of sparks, no jitter — very distinct look
+    const n = baseN;
+    const spd = baseSpd * 1.1;
+    for (let i = 0; i < n; i++) {
+      const ang = (i / n) * Math.PI * 2;
+      addSpark(shell.x, shell.y,
+        Math.cos(ang) * spd, Math.sin(ang) * spd,
+        hue, { size: 2.0 + Math.random() * 0.8 });
+    }
+  } else if (style === 'chrysanthemum') {
+    // Sparks with glowing trails that linger
+    const n = Math.round(baseN * 1.2);
+    for (let i = 0; i < n; i++) {
+      const ang = Math.random() * Math.PI * 2;
+      const spd = baseSpd * (0.7 + Math.random() * 0.7);
+      addSpark(shell.x, shell.y,
+        Math.cos(ang) * spd, Math.sin(ang) * spd,
+        Math.random() < 0.5 ? hue : hue2,
+        { trailed: true, trailFade: 0.6, decay: 0.006 + Math.random() * 0.008,
+          size: 1.8 + Math.random() * 1.2 });
+    }
+  } else if (style === 'willow') {
+    // Droopy — low speed, high gravity, long life, trailing
+    const n = Math.round(baseN * 0.9);
+    const spd = baseSpd * 0.55;
+    for (let i = 0; i < n; i++) {
+      const ang = Math.random() * Math.PI * 2;
+      addSpark(shell.x, shell.y,
+        Math.cos(ang) * spd * (0.6 + Math.random() * 0.5),
+        Math.sin(ang) * spd * (0.6 + Math.random() * 0.5),
+        hue,
+        { trailed: true, trailFade: 0.8, decay: 0.004 + Math.random() * 0.005,
+          gravity: 0.11, drag: 0.99, size: 1.4 + Math.random() * 0.8 });
+    }
+  } else if (style === 'crossette') {
+    // Initial burst, each spark re-explodes (we fake it with a "crackle" timer)
+    const n = Math.round(baseN * 0.6);
+    for (let i = 0; i < n; i++) {
+      const ang = Math.random() * Math.PI * 2;
+      const spd = baseSpd * (0.9 + Math.random() * 0.4);
+      addSpark(shell.x, shell.y,
+        Math.cos(ang) * spd, Math.sin(ang) * spd,
+        Math.random() < 0.5 ? hue : hue2,
+        { crackle: 0.35 + Math.random() * 0.2,   // trigger re-explosion at this life
+          size: 2.0 + Math.random() * 0.8,
+          decay: 0.010 });
+    }
+  } else if (style === 'palm') {
+    // Tall, narrow — sparks go mostly UP and then fall as fronds
+    const n = Math.round(baseN * 0.7);
+    for (let i = 0; i < n; i++) {
+      // Biased toward upward angles (270° ± 70°)
+      const ang = -Math.PI / 2 + (Math.random() - 0.5) * 1.6;
+      const spd = baseSpd * (0.9 + Math.random() * 0.8);
+      addSpark(shell.x, shell.y,
+        Math.cos(ang) * spd, Math.sin(ang) * spd,
+        hue,
+        { trailed: true, trailFade: 0.7, gravity: 0.09,
+          decay: 0.005, size: 1.8 + Math.random() * 1.0 });
+    }
+  } else {
+    // peony: classic round burst, randomized
+    const n = baseN;
+    for (let i = 0; i < n; i++) {
+      const ang = Math.random() * Math.PI * 2;
+      const spd = baseSpd * (0.55 + Math.random() * 0.9);
+      addSpark(shell.x, shell.y,
+        Math.cos(ang) * spd, Math.sin(ang) * spd,
+        Math.random() < 0.5 ? hue : hue2,
+        { size: 1.6 + Math.random() * 1.6 });
+    }
+  }
+
+  // Double burst for huge papers (300+ cites): schedule a second pop
+  if (cites >= 300) {
+    setTimeout(() => {
+      const miniShell = {
+        x: shell.x + (Math.random() - 0.5) * 60,
+        y: shell.y + (Math.random() - 0.5) * 60,
+        cites: Math.floor(cites * 0.35), color: pick(PALETTE),
+        style: pick(['ring', 'chrysanthemum', 'peony']),
+      };
+      burst(miniShell);
+    }, 180 + Math.random() * 180);
+  }
+
+  if (shell.labelKey && labelLookup[shell.labelKey]) {
+    showLabel(labelLookup[shell.labelKey]);
+  }
+}
+
+let labelTimer = null;
+function showLabel(l) {
+  const box = document.getElementById('paper-label');
+  box.querySelector('.title').textContent = '\u201C' + l.title + '\u201D';
+  box.querySelector('.author').textContent = l.author;
+  box.style.opacity = '1';
+  if (labelTimer) clearTimeout(labelTimer);
+  labelTimer = setTimeout(() => { box.style.opacity = '0'; }, 2800);
+}
+
+// ---------------------------------------------------------------------------
+let paperCount = 0;
+let citeCount = 0;
+function updateCounts() {
+  document.getElementById('cite-count').textContent = citeCount.toLocaleString();
+}
+
+// Animate
+function animate() {
+  // Motion-blur trail effect: translucent dark overlay each frame
+  ctx.fillStyle = 'rgba(11, 24, 48, 0.22)';
+  ctx.fillRect(0, 0, W, H);
+
+  // Update shells
+  const liveShells = [];
+  for (const s of shells) {
+    s.vy += 0.06;     // slight gravity while ascending
+    s.x += s.vx;
+    s.y += s.vy;
+    s.trail.push({ x: s.x, y: s.y });
+    if (s.trail.length > 8) s.trail.shift();
+    // Draw trail
+    ctx.strokeStyle = s.color;
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    for (let i = 0; i < s.trail.length; i++) {
+      const p = s.trail[i];
+      if (i === 0) ctx.moveTo(p.x, p.y); else ctx.lineTo(p.x, p.y);
+    }
+    ctx.stroke();
+    // Shell dot
+    ctx.fillStyle = s.color;
+    ctx.beginPath();
+    ctx.arc(s.x, s.y, 2.4, 0, Math.PI * 2);
+    ctx.fill();
+
+    if (s.y <= s.burstY || s.vy >= 0) {
+      burst(s);
+      paperCount++;
+      citeCount += s.cites;
+      updateCounts();
+    } else {
+      liveShells.push(s);
+    }
+  }
+  shells = liveShells;
+
+  // Update sparks
+  const liveSparks = [];
+  const crackleQueue = [];
+  for (const p of sparks) {
+    if (!p.isFlash) {
+      p.vy += p.gravity != null ? p.gravity : 0.05;
+      const d = p.drag != null ? p.drag : 0.985;
+      p.vx *= d;
+      p.vy *= d;
+      p.x += p.vx;
+      p.y += p.vy;
+    }
+    p.life -= p.decay;
+    if (p.life <= 0) continue;
+    // Crossette re-explosion
+    if (p.crackle && p.life <= p.crackle) {
+      crackleQueue.push(p);
+      continue;
+    }
+    // Trailing: draw a faint copy before updating (ghost trail)
+    if (p.trailed) {
+      ctx.globalAlpha = Math.max(0, p.life * (p.trailFade || 0.5));
+      ctx.fillStyle = p.color;
+      ctx.beginPath();
+      ctx.arc(p.x - p.vx * 0.9, p.y - p.vy * 0.9, p.size * 0.85, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.globalAlpha = Math.max(0, p.life);
+    ctx.fillStyle = p.color;
+    if (p.isFlash) {
+      const r = p.size * (1 + (1 - p.life) * 1.5);
+      const grad = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, r);
+      grad.addColorStop(0, 'rgba(255,255,255,' + p.life + ')');
+      grad.addColorStop(1, 'rgba(255,255,255,0)');
+      ctx.fillStyle = grad;
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, r, 0, Math.PI * 2);
+      ctx.fill();
+    } else {
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    liveSparks.push(p);
+  }
+  // Crossette: each crackling spark bursts into mini-sparks
+  for (const p of crackleQueue) {
+    for (let i = 0; i < 8; i++) {
+      const ang = Math.random() * Math.PI * 2;
+      const spd = 1.6 + Math.random() * 1.2;
+      addSpark(p.x, p.y,
+        Math.cos(ang) * spd + p.vx * 0.2,
+        Math.sin(ang) * spd + p.vy * 0.2,
+        p.color,
+        { decay: 0.03 + Math.random() * 0.02, size: 1.2 });
+    }
+  }
+  sparks = liveSparks;
+  ctx.globalAlpha = 1;
+
+  requestAnimationFrame(animate);
+}
+animate();
+
+// ---------------------------------------------------------------------------
+// Year-by-year launch scheduling
+const YEAR_DURATION = 3500;        // ms spent on each year
+let currentYearIdx = -1;
+let yearTimer = null;
+let launchTimer = null;
+
+function launchForYear(yr) {
+  document.getElementById('year-display').textContent = yr;
+  const cites = papersByYear[yr] || [];
+  if (cites.length === 0) return;
+  // Spread launches across ~85% of the year window
+  const windowMs = YEAR_DURATION * 0.85;
+  const interval = Math.max(10, Math.floor(windowMs / cites.length));
+  let i = 0;
+  if (launchTimer) clearInterval(launchTimer);
+  launchTimer = setInterval(() => {
+    if (i >= cites.length) { clearInterval(launchTimer); launchTimer = null; return; }
+    const c = cites[i];
+    const key = yr + ':' + c;
+    launchShell(c, { labelKey: labelLookup[key] ? key : null });
+    i++;
+  }, interval);
+}
+
+function advanceYear() {
+  currentYearIdx++;
+  if (currentYearIdx >= YEARS.length) {
+    stopAuto();
+    // Finale: stay on last year, show totals
+    document.getElementById('year-display').textContent = '2010\u20132025';
+    return;
+  }
+  launchForYear(YEARS[currentYearIdx]);
+}
+
+let autoPlaying = false;
+function startAuto() {
+  if (autoPlaying) return;
+  autoPlaying = true;
+  yearTimer = setInterval(() => {
+    if (currentYearIdx >= YEARS.length - 1) {
+      stopAuto();
+      window.parent.postMessage({ type: 'next-slide' }, '*');
+      return;
+    }
+    advanceYear();
+  }, YEAR_DURATION);
+}
+function stopAuto() {
+  autoPlaying = false;
+  if (yearTimer) { clearInterval(yearTimer); yearTimer = null; }
+}
+
+function goBack() {
+  stopAuto();
+  if (currentYearIdx <= 0) {
+    window.parent.postMessage({ type: 'prev-slide' }, '*');
+    return;
+  }
+  // Full reset
+  currentYearIdx = -1;
+  paperCount = 0;
+  citeCount = 0;
+  shells = [];
+  sparks = [];
+  updateCounts();
+  advanceYear();
+  startAuto();
+}
+
+window.addEventListener('load', () => {
+  setTimeout(() => { advanceYear(); startAuto(); }, 400);
+});
+
+window.addEventListener('message', e => {
+  if (e.data === 'advance') { stopAuto(); advanceYear(); startAuto(); }
+  if (e.data === 'back') goBack();
+});
+document.addEventListener('keydown', e => {
+  if (e.key === 'ArrowRight' || e.key === ' ') {
+    e.preventDefault(); stopAuto(); advanceYear(); startAuto();
+  }
+  if (e.key === 'ArrowLeft') { e.preventDefault(); goBack(); }
+});
+</script>
+</body>
+</html>

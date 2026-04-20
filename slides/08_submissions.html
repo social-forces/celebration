@@ -1,0 +1,387 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Submissions</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: #fafbfd;
+    font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
+    overflow: hidden;
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+    color: #2a3a52;
+  }
+  #header {
+    text-align: center;
+    padding: 14px 0 6px;
+    z-index: 10;
+    position: relative;
+  }
+  #header h2 {
+    font-size: 26px;
+    font-weight: 300;
+    color: #333;
+  }
+  #header h2 em { font-style: italic; font-weight: 400; }
+  #sub-big {
+    font-size: 64px;
+    font-weight: 700;
+    color: #2c5f8a;
+    line-height: 1;
+    margin-top: 4px;
+  }
+  #sub-big .label {
+    font-size: 22px;
+    font-weight: 300;
+    color: #666;
+    margin-left: 8px;
+    letter-spacing: 0.3px;
+  }
+  #canvas-wrap { flex: 1; position: relative; min-height: 0; }
+  canvas { width: 100%; height: 100%; display: block; }
+</style>
+</head>
+<body>
+
+<div id="header">
+  <h2>Submissions to <em>Social Forces</em></h2>
+  <div id="sub-big"><span id="sub-count">0</span><span class="label">submissions</span></div>
+</div>
+
+<div id="canvas-wrap">
+  <canvas id="sky"></canvas>
+</div>
+
+<script>
+const YEAR_DATA = [{"year":2010,"n":379},{"year":2011,"n":399},{"year":2012,"n":499},{"year":2013,"n":539},{"year":2014,"n":582},{"year":2015,"n":516},{"year":2016,"n":570},{"year":2017,"n":611},{"year":2018,"n":631},{"year":2019,"n":650},{"year":2020,"n":644},{"year":2021,"n":639},{"year":2022,"n":597},{"year":2023,"n":595},{"year":2024,"n":612},{"year":2025,"n":674}];
+const TOTAL = 9137;
+const MAX_N = Math.max(...YEAR_DATA.map(d => d.n));
+
+const canvas = document.getElementById('sky');
+const ctx = canvas.getContext('2d');
+let W, H;
+
+function resize() {
+  const wrap = document.getElementById('canvas-wrap');
+  W = wrap.clientWidth;
+  H = wrap.clientHeight;
+  canvas.width = W * devicePixelRatio;
+  canvas.height = H * devicePixelRatio;
+  canvas.style.width = W + 'px';
+  canvas.style.height = H + 'px';
+  ctx.setTransform(devicePixelRatio, 0, 0, devicePixelRatio, 0, 0);
+}
+resize();
+
+// ─── Envelope visuals ────────────────────────────────────────────────────
+const ENVELOPE_TINTS = [
+  '#ffffff', '#fdf7e3', '#edf3fb', '#fff1dd', '#f2e9f8', '#edf6f4',
+  '#fce8de', '#e8f0f7',
+];
+function pick(arr) { return arr[Math.floor(Math.random() * arr.length)]; }
+
+let flying = [];
+
+// Settled envelopes drawn into offscreen canvas for perf
+let settledCanvas, settledCtx;
+function initSettled() {
+  settledCanvas = document.createElement('canvas');
+  settledCanvas.width = canvas.width;
+  settledCanvas.height = canvas.height;
+  settledCtx = settledCanvas.getContext('2d');
+  settledCtx.setTransform(devicePixelRatio, 0, 0, devicePixelRatio, 0, 0);
+}
+initSettled();
+
+function drawEnvelope(c, x, y, angle, scale, color) {
+  c.save();
+  c.translate(x, y);
+  c.rotate(angle);
+  c.scale(scale, scale);
+
+  const w = 22, h = 14;
+
+  // Shadow
+  c.fillStyle = 'rgba(40,60,80,0.14)';
+  c.fillRect(-w / 2 + 1.5, -h / 2 + 1.5, w, h);
+
+  // Body
+  c.fillStyle = color;
+  c.fillRect(-w / 2, -h / 2, w, h);
+
+  // Border
+  c.strokeStyle = 'rgba(60,80,110,0.55)';
+  c.lineWidth = 0.7;
+  c.strokeRect(-w / 2, -h / 2, w, h);
+
+  // Flap — V from bottom corners up to middle of top edge
+  c.beginPath();
+  c.moveTo(-w / 2, -h / 2);
+  c.lineTo(0, h / 2 - 1);
+  c.lineTo(w / 2, -h / 2);
+  c.strokeStyle = 'rgba(60,80,110,0.48)';
+  c.lineWidth = 0.6;
+  c.stroke();
+
+  // Tiny stamp in top-right corner
+  c.fillStyle = 'rgba(232,145,58,0.55)';
+  c.fillRect(w / 2 - 4, -h / 2 + 1, 3, 3);
+
+  c.restore();
+}
+
+// ─── Invisible column grid ──────────────────────────────────────────────
+const MARGIN_X = 30;
+const COL_YEAR_LABEL_H = 20;           // space below each pile for the year
+const COL_BOTTOM_PAD = 8;
+let pileCounts = new Array(YEAR_DATA.length).fill(0);
+
+// Envelope size in the pile
+const PILE_W = 22;
+const PILE_H = 14;
+const PER_ROW = 3;
+// Row step — smaller than PILE_H so envelopes overlap vertically, like
+// real papers half-stacked on top of each other.
+const ROW_STEP = PILE_H * 0.55;
+const COL_STEP_FRAC = 0.72;            // horizontal step fraction (overlap in x)
+
+let visualForMax = 60;
+let visualCountFor = (r => Math.max(8, Math.round(r * visualForMax / MAX_N)));
+
+function colBoxFor(yearIdx) {
+  const n = YEAR_DATA.length;
+  const gapX = 22;                     // clear gap between years
+  const totalGap = gapX * (n - 1);
+  const w = (W - 2 * MARGIN_X - totalGap) / n;
+  const x = MARGIN_X + yearIdx * (w + gapX);
+  const topY = H * 0.14;
+  const botY = H - COL_BOTTOM_PAD - COL_YEAR_LABEL_H;
+  return { x, w, topY, botY };
+}
+
+function recomputeVisualScale() {
+  const box = colBoxFor(0);
+  const colH = box.botY - box.topY;
+  const rows = Math.max(4, Math.floor(colH / ROW_STEP));
+  visualForMax = Math.min(rows * PER_ROW, 180);
+  visualCountFor = (r => Math.max(8, Math.round(r * visualForMax / MAX_N)));
+}
+recomputeVisualScale();
+window.addEventListener('resize', () => {
+  resize();
+  initSettled();
+  recomputeVisualScale();
+  repaintSettledFromState();
+});
+
+// Keep track of landed envelopes so we can repaint on resize
+const settledState = [];              // [{x, y, angle, scale, color}]
+function repaintSettledFromState() {
+  settledCtx.clearRect(0, 0, canvas.width, canvas.height);
+  drawYearLabelsBelow();
+  for (const e of settledState) {
+    drawEnvelope(settledCtx, e.x, e.y, e.angle, e.scale, e.color);
+  }
+}
+
+// ─── Year labels below each column (always visible) ────────────────────
+function drawYearLabelsBelow() {
+  settledCtx.save();
+  settledCtx.setTransform(devicePixelRatio, 0, 0, devicePixelRatio, 0, 0);
+  settledCtx.fillStyle = '#888';
+  settledCtx.font = '11px Helvetica, Arial';
+  settledCtx.textAlign = 'center';
+  settledCtx.textBaseline = 'top';
+  for (let yi = 0; yi < YEAR_DATA.length; yi++) {
+    const box = colBoxFor(yi);
+    settledCtx.fillText(
+      String(YEAR_DATA[yi].year).slice(-2),
+      box.x + box.w / 2,
+      box.botY + 6
+    );
+  }
+  settledCtx.restore();
+}
+drawYearLabelsBelow();
+
+function landingSlotFor(yearIdx, indexInYear) {
+  const box = colBoxFor(yearIdx);
+  const inner = box.w - 2;
+  const cellW = inner / PER_ROW;
+  const colInRow = indexInYear % PER_ROW;
+  const row = Math.floor(indexInYear / PER_ROW);
+  // Horizontal: envelopes overlap sideways a bit, each row shifted
+  const rowOffset = (row % 2) * (cellW * 0.25);
+  const cx = box.x + 1 + (colInRow + 0.5) * cellW + rowOffset * (colInRow % 2 ? 1 : -1)
+            + (Math.random() - 0.5) * 3;
+  // Vertical: envelopes stacked with overlap (ROW_STEP < PILE_H)
+  const cy = box.botY - 2 - row * ROW_STEP - PILE_H / 2
+            + (Math.random() - 0.5) * 2;
+  // Slight angle per envelope — like real paper not aligned perfectly
+  const angle = (Math.random() - 0.5) * 0.28;
+  return { x: cx, y: cy, angle };
+}
+
+function spawnEnvelope(yearIdx) {
+  const edge = Math.random();
+  let sx, sy;
+  if (edge < 0.4) { sx = Math.random() * W; sy = -30; }
+  else if (edge < 0.70) { sx = -30; sy = Math.random() * H * 0.4; }
+  else { sx = W + 30; sy = Math.random() * H * 0.4; }
+
+  const dest = landingSlotFor(yearIdx, pileCounts[yearIdx]);
+  pileCounts[yearIdx]++;
+  const dx = dest.x - sx;
+  const dy = dest.y - sy;
+  const dist = Math.hypot(dx, dy);
+  const speed = 6 + Math.random() * 3.5;
+  const vx = dx / dist * speed;
+  const vy = dy / dist * speed;
+  flying.push({
+    x: sx, y: sy, vx, vy,
+    destX: dest.x, destY: dest.y,
+    destAngle: dest.angle,
+    angle: Math.atan2(vy, vx) * 0.6,
+    scale: 1.0 + Math.random() * 0.25,
+    color: pick(ENVELOPE_TINTS),
+    wobble: Math.random() * Math.PI * 2,
+    wobbleSpeed: 0.05 + Math.random() * 0.05,
+  });
+}
+
+function animate() {
+  ctx.save();
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  ctx.drawImage(settledCanvas, 0, 0);
+  ctx.restore();
+
+  const stillFlying = [];
+  for (const e of flying) {
+    e.wobble += e.wobbleSpeed;
+    e.x += e.vx;
+    e.y += e.vy + Math.sin(e.wobble) * 0.2;
+
+    const rem = Math.hypot(e.destX - e.x, e.destY - e.y);
+    if (rem < 7) {
+      // Settle with its destination tilt — looks like casually stacked paper
+      const landed = {
+        x: e.destX, y: e.destY, angle: e.destAngle, scale: 0.95, color: e.color,
+      };
+      drawEnvelope(settledCtx, landed.x, landed.y, landed.angle, landed.scale, landed.color);
+      settledState.push(landed);
+      continue;
+    }
+    drawEnvelope(ctx, e.x, e.y, e.angle, e.scale, e.color);
+    stillFlying.push(e);
+  }
+  flying = stillFlying;
+  requestAnimationFrame(animate);
+}
+animate();
+
+// ─── Year pacing ─────────────────────────────────────────────────────────
+let currentYearIdx = -1;
+let yearTimer = null;
+let spawnTimer = null;
+let visualSpawned = 0;
+let realCountInYear = 0;
+let cumReal = 0;
+const YEAR_DURATION = 3200;
+
+function startYear(yr) {
+  visualSpawned = 0;
+  realCountInYear = 0;
+
+  const yearIdx = currentYearIdx;
+  const nVisual = visualCountFor(yr.n);
+  const interval = Math.max(14, Math.floor(YEAR_DURATION * 0.88 / nVisual));
+  const realPerVisual = yr.n / nVisual;
+
+  if (spawnTimer) clearInterval(spawnTimer);
+  spawnTimer = setInterval(() => {
+    if (visualSpawned >= nVisual) {
+      clearInterval(spawnTimer); spawnTimer = null;
+      const delta = yr.n - realCountInYear;
+      realCountInYear = yr.n;
+      cumReal += delta;
+      document.getElementById('sub-count').textContent = cumReal.toLocaleString();
+      return;
+    }
+    spawnEnvelope(yearIdx);
+    visualSpawned++;
+    const incTo = Math.round(visualSpawned * realPerVisual);
+    const delta = incTo - realCountInYear;
+    realCountInYear = incTo;
+    cumReal += delta;
+    document.getElementById('sub-count').textContent = cumReal.toLocaleString();
+  }, interval);
+}
+
+function advanceYear() {
+  currentYearIdx++;
+  if (currentYearIdx >= YEAR_DATA.length) {
+    stopAuto();
+    cumReal = TOTAL;
+    document.getElementById('sub-count').textContent = cumReal.toLocaleString();
+    window.parent.postMessage({ type: 'next-slide' }, '*');
+    return;
+  }
+  startYear(YEAR_DATA[currentYearIdx]);
+}
+
+let autoPlaying = false;
+function startAuto() {
+  if (autoPlaying) return;
+  autoPlaying = true;
+  yearTimer = setInterval(() => {
+    if (currentYearIdx >= YEAR_DATA.length - 1) {
+      stopAuto();
+      window.parent.postMessage({ type: 'next-slide' }, '*');
+      return;
+    }
+    advanceYear();
+  }, YEAR_DURATION);
+}
+function stopAuto() {
+  autoPlaying = false;
+  if (yearTimer) { clearInterval(yearTimer); yearTimer = null; }
+}
+
+function goBack() {
+  stopAuto();
+  if (currentYearIdx <= 0) {
+    window.parent.postMessage({ type: 'prev-slide' }, '*');
+    return;
+  }
+  flying = [];
+  settledState.length = 0;
+  pileCounts = new Array(YEAR_DATA.length).fill(0);
+  initSettled();
+  drawYearLabelsBelow();
+  cumReal = 0;
+  currentYearIdx = -1;
+  document.getElementById('sub-count').textContent = '0';
+  advanceYear();
+  startAuto();
+}
+
+window.addEventListener('load', () => {
+  setTimeout(() => { advanceYear(); startAuto(); }, 400);
+});
+window.addEventListener('message', e => {
+  if (e.data === 'advance') { stopAuto(); advanceYear(); startAuto(); }
+  if (e.data === 'back') goBack();
+});
+document.addEventListener('keydown', e => {
+  if (e.key === 'ArrowRight' || e.key === ' ') {
+    e.preventDefault(); stopAuto(); advanceYear(); startAuto();
+  }
+  if (e.key === 'ArrowLeft') { e.preventDefault(); goBack(); }
+});
+</script>
+</body>
+</html>

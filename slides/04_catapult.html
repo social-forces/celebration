@@ -1,0 +1,601 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Review Invitations — Archery</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: #fff;
+    font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
+    overflow: hidden;
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+  }
+  #header {
+    text-align: center;
+    padding: 8px 0 0;
+    z-index: 10;
+  }
+  #header h2 {
+    font-size: 18px;
+    font-weight: 300;
+    color: #555;
+  }
+  #header h2 em { font-style: italic; font-weight: 400; }
+  #year-display {
+    font-size: 18px;
+    font-weight: 400;
+    color: #888;
+    line-height: 1;
+    margin-top: 2px;
+    letter-spacing: 1px;
+  }
+  #counts {
+    margin-top: 8px;
+    display: flex;
+    justify-content: center;
+    gap: 60px;
+    font-family: "Courier New", "Menlo", monospace;
+  }
+  .count-block {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+  .count-label {
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: #888;
+  }
+  .count-item {
+    font-size: 72px;
+    font-weight: 900;
+    line-height: 1;
+    letter-spacing: -2px;
+    text-shadow: 2px 2px 0 rgba(0,0,0,0.08);
+  }
+  .count-completed { color: #2c5f8a; }
+  .count-rejected { color: #e8913a; }
+  #canvas-wrap {
+    flex: 1;
+    position: relative;
+  }
+  canvas {
+    width: 100%;
+    height: 100%;
+  }
+</style>
+</head>
+<body>
+
+<div id="header">
+  <h2>Review invitations at <em>Social Forces</em></h2>
+  <div id="year-display">2010</div>
+  <div id="counts">
+    <div class="count-block">
+      <div class="count-label">Hits</div>
+      <div class="count-item count-completed" id="completed-count">0</div>
+    </div>
+    <div class="count-block">
+      <div class="count-label">Misses</div>
+      <div class="count-item count-rejected" id="rejected-count">0</div>
+    </div>
+  </div>
+</div>
+
+<div id="canvas-wrap">
+  <canvas id="scene"></canvas>
+</div>
+
+<script>
+const yearData = [
+  {year:2010, invited:2607, completed:873},
+  {year:2011, invited:2382, completed:833},
+  {year:2012, invited:2961, completed:935},
+  {year:2013, invited:3932, completed:1159},
+  {year:2014, invited:4317, completed:1251},
+  {year:2015, invited:3509, completed:1112},
+  {year:2016, invited:4242, completed:1198},
+  {year:2017, invited:5450, completed:1397},
+  {year:2018, invited:6097, completed:1535},
+  {year:2019, invited:6046, completed:1503},
+  {year:2020, invited:7112, completed:1610},
+  {year:2021, invited:5662, completed:1406},
+  {year:2022, invited:4068, completed:1171},
+  {year:2023, invited:4501, completed:1153},
+  {year:2024, invited:4684, completed:1191},
+  {year:2025, invited:4863, completed:1281},
+];
+
+const canvas = document.getElementById('scene');
+const ctx = canvas.getContext('2d');
+let W, H;
+
+function resize() {
+  const wrap = document.getElementById('canvas-wrap');
+  const rect = wrap.getBoundingClientRect();
+  W = rect.width;
+  H = rect.height;
+  canvas.width = W * devicePixelRatio;
+  canvas.height = H * devicePixelRatio;
+  canvas.style.width = W + 'px';
+  canvas.style.height = H + 'px';
+}
+resize();
+
+const GRAVITY = 0.25;
+const ARROW_LEN = 46;
+const COL_W = 8;
+
+// Arne caricature
+const arneImg = new Image();
+arneImg.src = '../arne_arrows.png';
+
+let arrows = [];      // in-flight arrows
+let stuckArrows = []; // arrows stuck in the bullseye
+let currentYearIdx = -1;
+let finished = false;
+let completedTotal = 0, rejectedTotal = 0;
+
+// Pile of missed arrows on the ground
+let groundCols = [];
+let pileCanvas = null, pileCtx = null;
+
+function initGround() {
+  const n = Math.ceil(W / COL_W);
+  groundCols = new Array(n).fill(H - 10);
+}
+function initPileCanvas() {
+  pileCanvas = document.createElement('canvas');
+  pileCanvas.width = canvas.width;
+  pileCanvas.height = canvas.height;
+  pileCtx = pileCanvas.getContext('2d');
+  pileCtx.setTransform(devicePixelRatio, 0, 0, devicePixelRatio, 0, 0);
+}
+initGround();
+initPileCanvas();
+
+function getGeometry() {
+  const targetR = Math.min(W * 0.11, H * 0.2);
+  return {
+    // Arrow origin at the tip of Arne's bow (right edge of the caricature)
+    bowX: W * 0.32,
+    bowY: H * 0.4,
+    targetX: W * 0.82,
+    targetY: H * 0.45,
+    targetR,
+  };
+}
+
+function drawBow(g) {
+  if (!arneImg.complete || !arneImg.naturalWidth) return;
+
+  // Size the caricature relative to screen. Arrow tip in the image is near the
+  // right edge, vertically about 30% down from the top.
+  const targetH = H * 0.6;
+  const aspect = arneImg.naturalWidth / arneImg.naturalHeight;
+  const drawH = targetH;
+  const drawW = drawH * aspect;
+
+  // Position so that the arrow tip in the image aligns with (bowX, bowY)
+  const tipFracX = 0.92; // right edge of image
+  const tipFracY = 0.28; // roughly where arrow tip is in the image
+
+  const imgX = g.bowX - drawW * tipFracX;
+  const imgY = g.bowY - drawH * tipFracY;
+
+  ctx.drawImage(arneImg, imgX, imgY, drawW, drawH);
+}
+
+function drawTarget(g) {
+  const rings = [
+    { r: g.targetR, color: '#f4f4f4' },
+    { r: g.targetR * 0.8, color: '#5e5e5e' },
+    { r: g.targetR * 0.62, color: '#4b8ec0' },
+    { r: g.targetR * 0.45, color: '#d44b4b' },
+    { r: g.targetR * 0.28, color: '#f5c541' },
+    { r: g.targetR * 0.13, color: '#d44b4b' },
+  ];
+  // Outer shadow
+  ctx.beginPath();
+  ctx.arc(g.targetX + 3, g.targetY + 3, g.targetR + 2, 0, Math.PI * 2);
+  ctx.fillStyle = 'rgba(0,0,0,0.08)';
+  ctx.fill();
+
+  for (const ring of rings) {
+    ctx.beginPath();
+    ctx.arc(g.targetX, g.targetY, ring.r, 0, Math.PI * 2);
+    ctx.fillStyle = ring.color;
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(0,0,0,0.25)';
+    ctx.lineWidth = 1;
+    ctx.stroke();
+  }
+
+  // Target stand
+  ctx.fillStyle = '#8a6a48';
+  ctx.fillRect(g.targetX - 5, g.targetY + g.targetR, 10, H - (g.targetY + g.targetR) - 10);
+}
+
+function drawArrow(x, y, angle, stuck) {
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.rotate(angle);
+
+  // Shaft — thick with dark outline
+  ctx.strokeStyle = '#2d1f0d';
+  ctx.lineWidth = 5;
+  ctx.lineCap = 'round';
+  ctx.beginPath();
+  ctx.moveTo(-ARROW_LEN, 0);
+  ctx.lineTo(-8, 0);
+  ctx.stroke();
+
+  ctx.strokeStyle = '#c29660';
+  ctx.lineWidth = 3;
+  ctx.beginPath();
+  ctx.moveTo(-ARROW_LEN, 0);
+  ctx.lineTo(-8, 0);
+  ctx.stroke();
+
+  // Arrowhead — chunky with black outline
+  ctx.fillStyle = stuck ? '#3a7fb3' : '#555555';
+  ctx.strokeStyle = '#1a1a1a';
+  ctx.lineWidth = 1.8;
+  ctx.beginPath();
+  ctx.moveTo(4, 0);
+  ctx.lineTo(-10, -6);
+  ctx.lineTo(-8, 0);
+  ctx.lineTo(-10, 6);
+  ctx.closePath();
+  ctx.fill();
+  ctx.stroke();
+
+  // Fletching — big cartoon feathers
+  ctx.fillStyle = stuck ? '#3a7fb3' : '#f0a050';
+  ctx.strokeStyle = '#1a1a1a';
+  ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  ctx.moveTo(-ARROW_LEN + 2, 0);
+  ctx.lineTo(-ARROW_LEN - 8, -7);
+  ctx.lineTo(-ARROW_LEN - 3, 0);
+  ctx.lineTo(-ARROW_LEN - 8, 7);
+  ctx.closePath();
+  ctx.fill();
+  ctx.stroke();
+
+  ctx.lineCap = 'butt';
+  ctx.restore();
+}
+
+function spawnArrow(willHit, weightHit, weightMiss) {
+  const g = getGeometry();
+
+  // Pick an impact point (for hits) or a miss point across the full target
+  let impactX, impactY;
+  if (willHit) {
+    // Uniform area distribution across the full target circle
+    const r = Math.sqrt(Math.random()) * g.targetR * 0.92;
+    const theta = Math.random() * Math.PI * 2;
+    impactX = g.targetX + Math.cos(theta) * r;
+    impactY = g.targetY + Math.sin(theta) * r;
+  } else {
+    // Miss: just outside the target, all around
+    const r = g.targetR * (1.0 + Math.random() * 0.4);
+    const theta = Math.random() * Math.PI * 2;
+    impactX = g.targetX + Math.cos(theta) * r;
+    impactY = g.targetY + Math.sin(theta) * r;
+  }
+
+  const dx = impactX - g.bowX;
+  const dy = impactY - g.bowY;
+
+  // Fast flat arrow
+  const vx = 18 + Math.random() * 2;
+  const t = dx / vx;
+  const vy = (dy - 0.5 * GRAVITY * t * t) / t;
+
+  arrows.push({
+    x: g.bowX + 20,
+    y: g.bowY,
+    vx,
+    vy,
+    angle: Math.atan2(vy, vx),
+    willHit,
+    impactX,
+    impactY,
+    decided: false,
+    age: 0,
+    weightHit,
+    weightMiss,
+  });
+}
+
+// Continuous stream of shots — each entry is {year, willHit, weightHit, weightMiss}
+let shotQueue = [];
+let queueIdx = 0;
+
+function buildShotQueue() {
+  const maxInv = Math.max(...yearData.map(y => y.invited));
+  shotQueue = [];
+  yearData.forEach(d => {
+    const totalVisual = Math.round(200 * d.invited / maxInv);
+    const nHit = Math.round(totalVisual * (d.completed / d.invited));
+    const nMiss = totalVisual - nHit;
+    const weightHit = nHit > 0 ? d.completed / nHit : 0;
+    const weightMiss = nMiss > 0 ? (d.invited - d.completed) / nMiss : 0;
+
+    const yearShots = [];
+    for (let i = 0; i < nHit; i++) yearShots.push({ year: d.year, willHit: true, weightHit, weightMiss });
+    for (let i = 0; i < nMiss; i++) yearShots.push({ year: d.year, willHit: false, weightHit, weightMiss });
+    // Shuffle within year
+    for (let i = yearShots.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [yearShots[i], yearShots[j]] = [yearShots[j], yearShots[i]];
+    }
+    shotQueue.push(...yearShots);
+  });
+}
+
+let spawnTimer = null;
+let finishedSpawning = false;
+
+function startContinuousFlow() {
+  buildShotQueue();
+  queueIdx = 0;
+  finishedSpawning = false;
+
+  // Total duration: ~50 seconds for ~2500 shots → 20ms between spawns
+  const SHOT_INTERVAL = 22;
+
+  spawnTimer = setInterval(() => {
+    if (queueIdx >= shotQueue.length) {
+      clearInterval(spawnTimer);
+      spawnTimer = null;
+      finishedSpawning = true;
+      return;
+    }
+    const s = shotQueue[queueIdx];
+    spawnArrow(s.willHit, s.weightHit, s.weightMiss);
+    document.getElementById('year-display').textContent = s.year;
+    queueIdx++;
+  }, SHOT_INTERVAL);
+}
+
+function getGroundAt(x) {
+  const col = Math.floor(x / COL_W);
+  if (col < 0 || col >= groundCols.length) return H - 10;
+  let gy = groundCols[col];
+  if (col > 0) gy = Math.min(gy, groundCols[col - 1]);
+  if (col < groundCols.length - 1) gy = Math.min(gy, groundCols[col + 1]);
+  return gy;
+}
+
+function pileArrow(a) {
+  // Find a nearby lowest column for a flatter pile
+  let col = Math.floor(a.x / COL_W);
+  col = Math.max(0, Math.min(col, groundCols.length - 1));
+  let bestCol = col, bestG = groundCols[col];
+  const r = 4;
+  for (let c = Math.max(0, col - r); c <= Math.min(groundCols.length - 1, col + r); c++) {
+    if (groundCols[c] > bestG) { bestG = groundCols[c]; bestCol = c; }
+  }
+
+  const sx = bestCol * COL_W + COL_W / 2;
+  const sy = groundCols[bestCol];
+
+  // Raise ground across a generous footprint so the pile grows fast
+  const footprint = Math.ceil(ARROW_LEN / COL_W);
+  for (let c = bestCol - Math.floor(footprint / 2); c <= bestCol + Math.ceil(footprint / 2); c++) {
+    if (c >= 0 && c < groundCols.length) {
+      groundCols[c] = Math.min(groundCols[c], sy - 7);
+    }
+  }
+
+  // Cartoon-style arrow laying at tilt
+  const tilt = (Math.random() - 0.5) * 0.5;
+  pileCtx.save();
+  pileCtx.translate(sx, sy);
+  pileCtx.rotate(tilt);
+
+  // Shaft — thick outlined
+  pileCtx.strokeStyle = '#2d1f0d';
+  pileCtx.lineWidth = 5;
+  pileCtx.lineCap = 'round';
+  pileCtx.beginPath();
+  pileCtx.moveTo(-ARROW_LEN / 2, 0);
+  pileCtx.lineTo(ARROW_LEN / 2 - 4, 0);
+  pileCtx.stroke();
+  pileCtx.strokeStyle = '#c29660';
+  pileCtx.lineWidth = 3;
+  pileCtx.beginPath();
+  pileCtx.moveTo(-ARROW_LEN / 2, 0);
+  pileCtx.lineTo(ARROW_LEN / 2 - 4, 0);
+  pileCtx.stroke();
+
+  // Arrowhead
+  pileCtx.fillStyle = '#555555';
+  pileCtx.strokeStyle = '#1a1a1a';
+  pileCtx.lineWidth = 1.8;
+  pileCtx.beginPath();
+  pileCtx.moveTo(ARROW_LEN / 2 + 4, 0);
+  pileCtx.lineTo(ARROW_LEN / 2 - 10, -6);
+  pileCtx.lineTo(ARROW_LEN / 2 - 8, 0);
+  pileCtx.lineTo(ARROW_LEN / 2 - 10, 6);
+  pileCtx.closePath();
+  pileCtx.fill();
+  pileCtx.stroke();
+
+  // Fletching
+  pileCtx.fillStyle = '#f0a050';
+  pileCtx.strokeStyle = '#1a1a1a';
+  pileCtx.lineWidth = 1.5;
+  pileCtx.beginPath();
+  pileCtx.moveTo(-ARROW_LEN / 2 + 2, 0);
+  pileCtx.lineTo(-ARROW_LEN / 2 - 8, -7);
+  pileCtx.lineTo(-ARROW_LEN / 2 - 3, 0);
+  pileCtx.lineTo(-ARROW_LEN / 2 - 8, 7);
+  pileCtx.closePath();
+  pileCtx.fill();
+  pileCtx.stroke();
+
+  pileCtx.lineCap = 'butt';
+  pileCtx.restore();
+
+  a.piled = true;
+}
+
+function update() {
+  const g = getGeometry();
+
+  for (const a of arrows) {
+    a.age++;
+    a.vy += GRAVITY;
+    a.x += a.vx;
+    a.y += a.vy;
+    a.angle = Math.atan2(a.vy, a.vx);
+
+    if (!a.decided) {
+      const tipX = a.x;
+      // Decide when the arrow reaches the impact plane (near its impact X)
+      if (tipX >= a.impactX) {
+        a.decided = true;
+        if (a.willHit) {
+          stuckArrows.push({
+            relX: a.impactX - g.targetX,
+            relY: a.impactY - g.targetY,
+            angle: a.angle,
+          });
+          completedTotal += a.weightHit;
+          document.getElementById('completed-count').textContent =
+            Math.round(completedTotal).toLocaleString();
+          a.stuck = true;
+        } else {
+          // Medium bounce — arrows fly back with some force but stay on screen
+          a.vx = -Math.abs(a.vx) * 0.42 - 2.5;
+          a.vy = -4.5 - Math.random() * 3.5;
+          rejectedTotal += a.weightMiss;
+          document.getElementById('rejected-count').textContent =
+            Math.round(rejectedTotal).toLocaleString();
+        }
+      }
+    }
+
+    // If a missed arrow has bounced off and is falling, pile it on hit
+    if (a.decided && !a.stuck && a.vy > 0) {
+      const ground = getGroundAt(a.x);
+      if (a.y >= ground) {
+        pileArrow(a);
+      }
+    }
+  }
+
+  arrows = arrows.filter(a => {
+    if (a.stuck || a.piled) return false;
+    // Clamp any that try to escape left of screen so they land in the pile
+    if (a.x < 10 && a.vy > 0) {
+      // Force it to pile at left edge
+      a.x = 10;
+      pileArrow(a);
+      return false;
+    }
+    if (a.x < -60 || a.y > H + 60 || a.age > 400) return false;
+    return true;
+  });
+}
+
+function render() {
+  update();
+
+  ctx.save();
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  // Draw the pile first (behind everything)
+  ctx.drawImage(pileCanvas, 0, 0);
+  ctx.restore();
+
+  ctx.save();
+  ctx.setTransform(devicePixelRatio, 0, 0, devicePixelRatio, 0, 0);
+
+  const g = getGeometry();
+  drawTarget(g);
+  drawBow(g);
+
+  for (const s of stuckArrows) {
+    drawArrow(g.targetX + s.relX, g.targetY + s.relY, s.angle, true);
+  }
+
+  for (const a of arrows) {
+    drawArrow(a.x, a.y, a.angle, false);
+  }
+
+  ctx.restore();
+  requestAnimationFrame(render);
+}
+
+function advance() {
+  // Once flow is done and no arrows are in flight, go to next slide
+  if (finishedSpawning && arrows.length === 0) {
+    window.parent.postMessage({ type: 'next-slide' }, '*');
+  }
+}
+
+function goBack() {
+  if (queueIdx <= 0) {
+    window.parent.postMessage({ type: 'prev-slide' }, '*');
+    return;
+  }
+  // Reset and restart flow
+  if (spawnTimer) { clearInterval(spawnTimer); spawnTimer = null; }
+  completedTotal = 0;
+  rejectedTotal = 0;
+  arrows = [];
+  stuckArrows = [];
+  initGround();
+  initPileCanvas();
+  document.getElementById('completed-count').textContent = '0';
+  document.getElementById('rejected-count').textContent = '0';
+  startContinuousFlow();
+}
+
+render();
+
+// Start when image loads (or immediately if cached)
+function start() {
+  setTimeout(() => startContinuousFlow(), 300);
+}
+if (arneImg.complete) {
+  start();
+} else {
+  arneImg.addEventListener('load', start);
+  arneImg.addEventListener('error', start);
+}
+
+window.addEventListener('message', e => {
+  if (e.data === 'advance') advance();
+  if (e.data === 'back') goBack();
+});
+
+document.addEventListener('keydown', e => {
+  if (e.key === 'ArrowRight' || e.key === ' ') {
+    e.preventDefault();
+    advance();
+  }
+  if (e.key === 'ArrowLeft') {
+    e.preventDefault();
+    goBack();
+  }
+});
+
+window.addEventListener('resize', () => {
+  resize();
+  initGround();
+  initPileCanvas();
+});
+</script>
+</body>
+</html>

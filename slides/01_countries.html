@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Social Forces — By the Numbers</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: #fff;
+    font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 100vh;
+    overflow: hidden;
+  }
+  .slide {
+    text-align: center;
+  }
+  .number {
+    font-size: 220px;
+    font-weight: 700;
+    color: #2c5f8a;
+    line-height: 1;
+    opacity: 0;
+    transform: scale(0.8);
+    transition: opacity 0.6s ease, transform 0.6s ease;
+  }
+  .number.visible {
+    opacity: 1;
+    transform: scale(1);
+  }
+  .context-line {
+    font-size: 36px;
+    font-weight: 300;
+    color: #444;
+    opacity: 0;
+    transform: translateY(10px);
+    transition: opacity 0.5s ease, transform 0.5s ease;
+  }
+  .context-line.visible {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  .context-line em {
+    font-style: italic;
+    font-weight: 400;
+  }
+  .above { margin-bottom: 16px; }
+  .below { margin-top: 16px; }
+</style>
+</head>
+<body>
+
+<div class="slide">
+  <div class="context-line above" id="above">Authors from</div>
+  <div class="number" id="number">92</div>
+  <div class="context-line below" id="below">countries have submitted to <em>Social Forces</em></div>
+</div>
+
+<script>
+let step = 0;
+
+const MAX_STEP = 2;
+
+function advance() {
+  step++;
+  if (step === 1) {
+    document.getElementById('number').classList.add('visible');
+  } else if (step === 2) {
+    document.getElementById('above').classList.add('visible');
+    document.getElementById('below').classList.add('visible');
+  } else {
+    window.parent.postMessage({ type: 'next-slide' }, '*');
+  }
+}
+
+function goBack() {
+  if (step <= 1) {
+    window.parent.postMessage({ type: 'prev-slide' }, '*');
+    return;
+  }
+  if (step === 2) {
+    document.getElementById('above').classList.remove('visible');
+    document.getElementById('below').classList.remove('visible');
+    step = 1;
+  }
+}
+
+// Auto-show number on load
+window.addEventListener('load', () => {
+  requestAnimationFrame(() => advance());
+});
+
+// Listen for commands from deck
+window.addEventListener('message', e => {
+  if (e.data === 'advance') advance();
+  if (e.data === 'back') goBack();
+});
+</script>
+</body>
+</html>
