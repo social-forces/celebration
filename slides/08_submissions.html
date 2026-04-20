@@ -61,7 +61,7 @@ const TOTAL = 9137;
 const MAX_N = Math.max(...YEAR_DATA.map(d => d.n));
 
 const canvas = document.getElementById('sky');
-const ctx = canvas.getContext('2d');
+const ctx = canvas.getContext('2d', { alpha: true });
 let W, H;
 
 function resize() {
@@ -290,7 +290,7 @@ let spawnTimer = null;
 let visualSpawned = 0;
 let realCountInYear = 0;
 let cumReal = 0;
-const YEAR_DURATION = 3200;
+const YEAR_DURATION = 1600;
 
 function startYear(yr) {
   visualSpawned = 0;

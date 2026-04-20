@@ -63,22 +63,41 @@ window.addEventListener('message', e => {
   }
 });
 
-// Keyboard: forward commands to the active slide
+function isForceNextKey(e) {
+  return e.key === 'n' || e.key === 'N' || e.key === 'PageDown';
+}
+function isForcePrevKey(e) {
+  return e.key === 'b' || e.key === 'B' || e.key === 'PageUp';
+}
+function forceNext() {
+  if (current < slides.length - 1) loadSlide(current + 1);
+}
+function forcePrev() {
+  if (current > 0) loadSlide(current - 1);
+}
+
+// Parent-level keys (fires when focus isn't in the iframe)
 document.addEventListener('keydown', e => {
+  if (isForceNextKey(e)) { e.preventDefault(); forceNext(); return; }
+  if (isForcePrevKey(e)) { e.preventDefault(); forcePrev(); return; }
   if (e.key === 'ArrowRight' || e.key === ' ') {
-    e.preventDefault();
-    sendToSlide('advance');
+    e.preventDefault(); sendToSlide('advance');
   }
   if (e.key === 'ArrowLeft') {
-    e.preventDefault();
-    sendToSlide('back');
+    e.preventDefault(); sendToSlide('back');
   }
-  // Pass through 'p' for globe play/pause
-  if (e.key === 'p') {
-    iframe.contentWindow.document.dispatchEvent(
-      new KeyboardEvent('keydown', { key: 'p' })
-    );
-  }
+});
+
+// Inject force-next/back listeners into each slide so the keys work even
+// when the iframe has focus (which is most of the time).
+iframe.addEventListener('load', () => {
+  try {
+    const w = iframe.contentWindow;
+    w.addEventListener('keydown', e => {
+      if (isForceNextKey(e)) { e.preventDefault(); forceNext(); }
+      if (isForcePrevKey(e)) { e.preventDefault(); forcePrev(); }
+    });
+  } catch (err) { /* cross-origin safety, shouldn't happen here */ }
 });
 
 // Start
