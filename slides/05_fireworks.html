@@ -113,6 +113,55 @@
     opacity: 1;
     transform: translate(-50%, -50%) scale(1);
   }
+
+  /* QR card → pairs with the finale image. Fades in a beat after the
+     Arne image so attention lands on him first, then the "where to
+     scan" signal. */
+  #arne-era-qr {
+    position: absolute;
+    bottom: 24px;
+    right: 28px;
+    z-index: 20;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 14px 18px 12px;
+    border-radius: 10px;
+    background: rgba(11, 24, 48, 0.82);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    border: 1px solid rgba(255, 216, 90, 0.32);
+    box-shadow: 0 6px 28px rgba(0, 0, 0, 0.6);
+    opacity: 0;
+    transform: translateY(14px);
+    pointer-events: none;
+    transition: opacity 1s ease-out 0.6s, transform 1s ease-out 0.6s;
+  }
+  #arne-era-qr.visible {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  #arne-era-qr .label {
+    font-size: 11px;
+    font-weight: 600;
+    color: #ffd85a;
+    letter-spacing: 2.4px;
+    text-transform: uppercase;
+    margin-bottom: 8px;
+  }
+  #arne-era-qr img {
+    width: 140px;
+    height: 140px;
+    border-radius: 4px;
+    display: block;
+  }
+  #arne-era-qr .url {
+    margin-top: 8px;
+    font-size: 11px;
+    font-weight: 300;
+    color: rgba(245, 242, 232, 0.82);
+    letter-spacing: 0.5px;
+  }
 </style>
 </head>
 <body>
@@ -127,6 +176,11 @@
   <canvas id="sky"></canvas>
   <div id="floating-labels"></div>
   <img id="arne-finale" src="../arne_fireworks.png" alt="">
+  <div id="arne-era-qr">
+    <div class="label">The Arne Era</div>
+    <img src="../arne_era_qr.png" alt="QR to social-forces.github.io/arne-era">
+    <div class="url">social-forces.github.io/arne-era</div>
+  </div>
 </div>
 
 <script>
@@ -539,11 +593,13 @@ function showFinale() {
   stopAuto();
   document.getElementById('year-display').textContent = '2010\u20132025';
   document.getElementById('arne-finale').classList.add('visible');
+  document.getElementById('arne-era-qr').classList.add('visible');
 }
 function hideFinale() {
   finaleShown = false;
   if (finaleTimer) { clearTimeout(finaleTimer); finaleTimer = null; }
   document.getElementById('arne-finale').classList.remove('visible');
+  document.getElementById('arne-era-qr').classList.remove('visible');
 }
 
 function advanceYear() {
