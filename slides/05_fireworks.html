@@ -93,6 +93,26 @@
     80%  { opacity: 1; transform: translate(-50%, -150%) scale(1); }
     100% { opacity: 0; transform: translate(-50%, -190%) scale(1); }
   }
+
+  /* Finale image — Arne lighting off a rocket. Crossfades in once the last
+     year's shells have finished bursting. */
+  #arne-finale {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%) scale(0.94);
+    max-height: 82vh;
+    max-width: 72vw;
+    opacity: 0;
+    pointer-events: none;
+    z-index: 15;
+    filter: drop-shadow(0 12px 48px rgba(0, 0, 0, 0.7));
+    transition: opacity 1.6s ease-out, transform 1.6s ease-out;
+  }
+  #arne-finale.visible {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1);
+  }
 </style>
 </head>
 <body>
@@ -106,6 +126,7 @@
 <div id="canvas-wrap">
   <canvas id="sky"></canvas>
   <div id="floating-labels"></div>
+  <img id="arne-finale" src="../arne_fireworks.png" alt="">
 </div>
 
 <script>
@@ -499,12 +520,38 @@ function launchForYear(yr) {
   }, interval);
 }
 
+// Finale lifecycle. Triggered once the last year's shells have been launched,
+// with a small delay so the final bursts can complete before the image fades in.
+let finaleShown = false;
+let finaleTimer = null;
+const FINALE_DELAY_MS = 2200;
+
+function scheduleFinale() {
+  if (finaleShown || finaleTimer) return;
+  finaleTimer = setTimeout(() => {
+    finaleTimer = null;
+    showFinale();
+  }, FINALE_DELAY_MS);
+}
+function showFinale() {
+  if (finaleShown) return;
+  finaleShown = true;
+  stopAuto();
+  document.getElementById('year-display').textContent = '2010\u20132025';
+  document.getElementById('arne-finale').classList.add('visible');
+}
+function hideFinale() {
+  finaleShown = false;
+  if (finaleTimer) { clearTimeout(finaleTimer); finaleTimer = null; }
+  document.getElementById('arne-finale').classList.remove('visible');
+}
+
 function advanceYear() {
   currentYearIdx++;
   if (currentYearIdx >= YEARS.length) {
     stopAuto();
-    // Finale: stay on last year, show totals
     document.getElementById('year-display').textContent = '2010\u20132025';
+    scheduleFinale();
     return;
   }
   launchForYear(YEARS[currentYearIdx]);
@@ -512,12 +559,13 @@ function advanceYear() {
 
 let autoPlaying = false;
 function startAuto() {
-  if (autoPlaying) return;
+  if (autoPlaying || finaleShown) return;
   autoPlaying = true;
   yearTimer = setInterval(() => {
     if (currentYearIdx >= YEARS.length - 1) {
       stopAuto();
-      window.parent.postMessage({ type: 'next-slide' }, '*');
+      // Last year has started; let its shells finish, then reveal the finale.
+      scheduleFinale();
       return;
     }
     advanceYear();
@@ -530,6 +578,7 @@ function stopAuto() {
 
 function goBack() {
   stopAuto();
+  hideFinale();
   if (currentYearIdx <= 0) {
     window.parent.postMessage({ type: 'prev-slide' }, '*');
     return;
