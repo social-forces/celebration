@@ -64,6 +64,19 @@
     opacity: 0;
     animation: rise 900ms ease-out 1500ms forwards;
   }
+  .byline {
+    position: absolute;
+    bottom: 22px;
+    left: 0;
+    right: 0;
+    text-align: center;
+    font-size: 12px;
+    font-weight: 300;
+    color: #bbb;
+    letter-spacing: 1px;
+    opacity: 0;
+    animation: rise 900ms ease-out 1900ms forwards;
+  }
   @keyframes rise {
     from { opacity: 0; transform: translateY(16px); }
     to   { opacity: 1; transform: translateY(0); }
@@ -78,6 +91,8 @@
   <div class="sub"><strong>Arne L. Kalleberg</strong>, Editor</div>
   <div class="dates">2010 &ndash; 2025</div>
 </div>
+
+<div class="byline">Data visualization by Neal Caren</div>
 
 <script>
 window.addEventListener('message', e => {
