@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Lasting Impact</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: #fff;
+    font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
+    overflow: hidden;
+    height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #2a3a52;
+  }
+  #wrap { text-align: center; padding: 0 32px; }
+  .eyebrow {
+    font-size: clamp(14px, 1.4vw, 18px);
+    font-weight: 400;
+    color: #aaa;
+    letter-spacing: 6px;
+    text-transform: uppercase;
+    opacity: 0;
+    animation: rise 900ms ease-out 200ms forwards;
+  }
+  .title {
+    margin-top: 24px;
+    font-size: clamp(56px, 10vw, 130px);
+    font-weight: 300;
+    color: #2c5f8a;
+    letter-spacing: -0.01em;
+    line-height: 1.05;
+    opacity: 0;
+    animation: rise 900ms ease-out 500ms forwards;
+  }
+  @keyframes rise {
+    from { opacity: 0; transform: translateY(16px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+</style>
+</head>
+<body>
+
+<div id="wrap">
+  <div class="eyebrow">Part Four</div>
+  <div class="title">Lasting Impact</div>
+</div>
+
+<script>
+window.addEventListener('message', e => {
+  if (e.data === 'advance') window.parent.postMessage({ type: 'next-slide' }, '*');
+  if (e.data === 'back')    window.parent.postMessage({ type: 'prev-slide' }, '*');
+});
+document.addEventListener('keydown', e => {
+  if (e.key === 'ArrowRight' || e.key === ' ') {
+    e.preventDefault();
+    window.parent.postMessage({ type: 'next-slide' }, '*');
+  }
+  if (e.key === 'ArrowLeft') {
+    e.preventDefault();
+    window.parent.postMessage({ type: 'prev-slide' }, '*');
+  }
+});
+</script>
+</body>
+</html>
