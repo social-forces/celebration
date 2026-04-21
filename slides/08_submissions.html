@@ -207,7 +207,7 @@ function drawYearLabelsBelow() {
   for (let yi = 0; yi < YEAR_DATA.length; yi++) {
     const box = colBoxFor(yi);
     settledCtx.fillText(
-      String(YEAR_DATA[yi].year).slice(-2),
+      String(YEAR_DATA[yi].year),
       box.x + box.w / 2,
       box.botY + 6
     );
