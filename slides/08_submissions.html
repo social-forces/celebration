@@ -64,15 +64,20 @@ const canvas = document.getElementById('sky');
 const ctx = canvas.getContext('2d', { alpha: true });
 let W, H;
 
+// Retina devices report dpr=2 (or 3). At dpr=2 we'd copy the full settled
+// canvas 4× per frame, which is what was causing the stutter. Cap at 1.5
+// for crisp-enough text while keeping per-frame blit cost manageable.
+const DPR = Math.min(window.devicePixelRatio || 1, 1.5);
+
 function resize() {
   const wrap = document.getElementById('canvas-wrap');
   W = wrap.clientWidth;
   H = wrap.clientHeight;
-  canvas.width = W * devicePixelRatio;
-  canvas.height = H * devicePixelRatio;
+  canvas.width = W * DPR;
+  canvas.height = H * DPR;
   canvas.style.width = W + 'px';
   canvas.style.height = H + 'px';
-  ctx.setTransform(devicePixelRatio, 0, 0, devicePixelRatio, 0, 0);
+  ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
 }
 resize();
 
@@ -92,7 +97,7 @@ function initSettled() {
   settledCanvas.width = canvas.width;
   settledCanvas.height = canvas.height;
   settledCtx = settledCanvas.getContext('2d');
-  settledCtx.setTransform(devicePixelRatio, 0, 0, devicePixelRatio, 0, 0);
+  settledCtx.setTransform(DPR, 0, 0, DPR, 0, 0);
 }
 initSettled();
 
@@ -190,7 +195,7 @@ function repaintSettledFromState() {
 // ─── Year labels below each column (always visible) ────────────────────
 function drawYearLabelsBelow() {
   settledCtx.save();
-  settledCtx.setTransform(devicePixelRatio, 0, 0, devicePixelRatio, 0, 0);
+  settledCtx.setTransform(DPR, 0, 0, DPR, 0, 0);
   settledCtx.fillStyle = '#888';
   settledCtx.font = '11px Helvetica, Arial';
   settledCtx.textAlign = 'center';
@@ -237,11 +242,12 @@ function spawnEnvelope(yearIdx) {
   const dx = dest.x - sx;
   const dy = dest.y - sy;
   const dist = Math.hypot(dx, dy);
-  const speed = 6 + Math.random() * 3.5;
+  // Faster flight → fewer envelopes in flight simultaneously → smoother frames.
+  const speed = 12 + Math.random() * 6;
   const vx = dx / dist * speed;
   const vy = dy / dist * speed;
   flying.push({
-    x: sx, y: sy, vx, vy,
+    x: sx, y: sy, vx, vy, speed,
     destX: dest.x, destY: dest.y,
     destAngle: dest.angle,
     angle: Math.atan2(vy, vx) * 0.6,
@@ -266,7 +272,8 @@ function animate() {
     e.y += e.vy + Math.sin(e.wobble) * 0.2;
 
     const rem = Math.hypot(e.destX - e.x, e.destY - e.y);
-    if (rem < 7) {
+    // Landing threshold scales with speed so fast envelopes don't overshoot.
+    if (rem < e.speed + 2) {
       // Settle with its destination tilt — looks like casually stacked paper
       const landed = {
         x: e.destX, y: e.destY, angle: e.destAngle, scale: 0.95, color: e.color,
@@ -298,36 +305,54 @@ function startYear(yr) {
 
   const yearIdx = currentYearIdx;
   const nVisual = visualCountFor(yr.n);
-  const interval = Math.max(14, Math.floor(YEAR_DURATION * 0.88 / nVisual));
   const realPerVisual = yr.n / nVisual;
+
+  // 14ms is ~frame rate; below that risks jitter. When the per-year time
+  // budget can't fit nVisual singletons, spawn in batches so tall piles
+  // still reach their intended height.
+  const SPAWN_INTERVAL = 14;
+  const timeBudget = YEAR_DURATION * 0.88;
+  const ticks = Math.max(1, Math.floor(timeBudget / SPAWN_INTERVAL));
+  const perTick = Math.max(1, Math.ceil(nVisual / ticks));
 
   if (spawnTimer) clearInterval(spawnTimer);
   spawnTimer = setInterval(() => {
-    if (visualSpawned >= nVisual) {
-      clearInterval(spawnTimer); spawnTimer = null;
-      const delta = yr.n - realCountInYear;
-      realCountInYear = yr.n;
+    for (let k = 0; k < perTick; k++) {
+      if (visualSpawned >= nVisual) {
+        clearInterval(spawnTimer); spawnTimer = null;
+        const delta = yr.n - realCountInYear;
+        realCountInYear = yr.n;
+        cumReal += delta;
+        document.getElementById('sub-count').textContent = cumReal.toLocaleString();
+        return;
+      }
+      spawnEnvelope(yearIdx);
+      visualSpawned++;
+      const incTo = Math.round(visualSpawned * realPerVisual);
+      const delta = incTo - realCountInYear;
+      realCountInYear = incTo;
       cumReal += delta;
-      document.getElementById('sub-count').textContent = cumReal.toLocaleString();
-      return;
     }
-    spawnEnvelope(yearIdx);
-    visualSpawned++;
-    const incTo = Math.round(visualSpawned * realPerVisual);
-    const delta = incTo - realCountInYear;
-    realCountInYear = incTo;
-    cumReal += delta;
     document.getElementById('sub-count').textContent = cumReal.toLocaleString();
-  }, interval);
+  }, SPAWN_INTERVAL);
+}
+
+// When the animation has played out, we stop and wait for a manual
+// forward keypress before leaving the slide.
+let animationDone = false;
+
+function finishAnimation() {
+  stopAuto();
+  if (spawnTimer) { clearInterval(spawnTimer); spawnTimer = null; }
+  cumReal = TOTAL;
+  document.getElementById('sub-count').textContent = cumReal.toLocaleString();
+  animationDone = true;
 }
 
 function advanceYear() {
   currentYearIdx++;
   if (currentYearIdx >= YEAR_DATA.length) {
-    stopAuto();
-    cumReal = TOTAL;
-    document.getElementById('sub-count').textContent = cumReal.toLocaleString();
-    window.parent.postMessage({ type: 'next-slide' }, '*');
+    finishAnimation();
     return;
   }
   startYear(YEAR_DATA[currentYearIdx]);
@@ -335,12 +360,11 @@ function advanceYear() {
 
 let autoPlaying = false;
 function startAuto() {
-  if (autoPlaying) return;
+  if (autoPlaying || animationDone) return;
   autoPlaying = true;
   yearTimer = setInterval(() => {
     if (currentYearIdx >= YEAR_DATA.length - 1) {
-      stopAuto();
-      window.parent.postMessage({ type: 'next-slide' }, '*');
+      finishAnimation();
       return;
     }
     advanceYear();
@@ -351,9 +375,19 @@ function stopAuto() {
   if (yearTimer) { clearInterval(yearTimer); yearTimer = null; }
 }
 
+function forward() {
+  if (animationDone) {
+    window.parent.postMessage({ type: 'next-slide' }, '*');
+    return;
+  }
+  stopAuto();
+  advanceYear();
+  startAuto();
+}
+
 function goBack() {
   stopAuto();
-  if (currentYearIdx <= 0) {
+  if (currentYearIdx <= 0 && !animationDone) {
     window.parent.postMessage({ type: 'prev-slide' }, '*');
     return;
   }
@@ -364,6 +398,7 @@ function goBack() {
   drawYearLabelsBelow();
   cumReal = 0;
   currentYearIdx = -1;
+  animationDone = false;
   document.getElementById('sub-count').textContent = '0';
   advanceYear();
   startAuto();
@@ -373,12 +408,12 @@ window.addEventListener('load', () => {
   setTimeout(() => { advanceYear(); startAuto(); }, 400);
 });
 window.addEventListener('message', e => {
-  if (e.data === 'advance') { stopAuto(); advanceYear(); startAuto(); }
+  if (e.data === 'advance') forward();
   if (e.data === 'back') goBack();
 });
 document.addEventListener('keydown', e => {
   if (e.key === 'ArrowRight' || e.key === ' ') {
-    e.preventDefault(); stopAuto(); advanceYear(); startAuto();
+    e.preventDefault(); forward();
   }
   if (e.key === 'ArrowLeft') { e.preventDefault(); goBack(); }
 });
