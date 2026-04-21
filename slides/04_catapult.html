@@ -349,20 +349,27 @@ function startContinuousFlow() {
   queueIdx = 0;
   finishedSpawning = false;
 
-  // Total duration: ~50 seconds for ~2500 shots → 20ms between spawns
-  const SHOT_INTERVAL = 22;
+  // Target total duration ≈ 20s. 16ms is ~frame rate; hitting it keeps
+  // animation smooth, so we batch multiple arrows per tick to compress
+  // the timeline rather than lowering the interval further.
+  const TARGET_DURATION_MS = 20000;
+  const SHOT_INTERVAL = 16;
+  const ticks = Math.max(1, Math.floor(TARGET_DURATION_MS / SHOT_INTERVAL));
+  const perTick = Math.max(1, Math.ceil(shotQueue.length / ticks));
 
   spawnTimer = setInterval(() => {
-    if (queueIdx >= shotQueue.length) {
-      clearInterval(spawnTimer);
-      spawnTimer = null;
-      finishedSpawning = true;
-      return;
+    for (let k = 0; k < perTick; k++) {
+      if (queueIdx >= shotQueue.length) {
+        clearInterval(spawnTimer);
+        spawnTimer = null;
+        finishedSpawning = true;
+        return;
+      }
+      const s = shotQueue[queueIdx];
+      spawnArrow(s.willHit, s.weightHit, s.weightMiss);
+      document.getElementById('year-display').textContent = s.year;
+      queueIdx++;
     }
-    const s = shotQueue[queueIdx];
-    spawnArrow(s.willHit, s.weightHit, s.weightMiss);
-    document.getElementById('year-display').textContent = s.year;
-    queueIdx++;
   }, SHOT_INTERVAL);
 }
 
