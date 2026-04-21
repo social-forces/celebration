@@ -12,6 +12,11 @@
     width: 100vw;
     height: 100vh;
     border: none;
+    /* Promote to its own compositor layer so canvas pixels go
+       straight to GPU instead of round-tripping through the parent
+       document's paint path. This is what was halving frame rate. */
+    transform: translateZ(0);
+    will-change: transform;
   }
 </style>
 </head>

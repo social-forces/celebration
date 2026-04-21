@@ -61,7 +61,11 @@ const TOTAL = 9137;
 const MAX_N = Math.max(...YEAR_DATA.map(d => d.n));
 
 const canvas = document.getElementById('sky');
-const ctx = canvas.getContext('2d', { alpha: true });
+// alpha:false lets the browser treat the canvas as opaque — no per-frame
+// blending against the parent iframe. Page bg (#fafbfd) is repainted
+// as the first fill each frame instead of relying on transparency.
+const ctx = canvas.getContext('2d', { alpha: false });
+const PAGE_BG = '#fafbfd';
 let W, H;
 
 // Retina devices report dpr=2 (or 3). At dpr=2 we'd copy the full settled
@@ -261,7 +265,10 @@ function spawnEnvelope(yearIdx) {
 function animate() {
   ctx.save();
   ctx.setTransform(1, 0, 0, 1, 0, 0);
-  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  // Opaque context: paint page background instead of clearing to
+  // transparent (alpha:false would otherwise show black).
+  ctx.fillStyle = PAGE_BG;
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
   ctx.drawImage(settledCanvas, 0, 0);
   ctx.restore();
 
